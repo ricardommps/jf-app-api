@@ -1,4 +1,4 @@
-import { CustomerEntity } from 'src/entities/customer.entity';
+import { CustomerEntity } from '../entities/customer.entity';
 
 export class CustomerLoginDto {
   id: number;
