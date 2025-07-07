@@ -1,6 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
-import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
+import { UserType } from '../utils/user-type.enum';
 import { FinishedService } from './finished.service';
 
 @Controller('finished')

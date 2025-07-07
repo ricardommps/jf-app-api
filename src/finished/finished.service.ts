@@ -1,7 +1,7 @@
 import { InjectRepository } from '@nestjs/typeorm';
-import { FinishedEntity } from 'src/entities/finished.entity';
-import { WorkoutEntity } from 'src/entities/workouts.entity';
 import { Repository } from 'typeorm';
+import { FinishedEntity } from '../entities/finished.entity';
+import { WorkoutEntity } from '../entities/workouts.entity';
 
 export class FinishedService {
   constructor(

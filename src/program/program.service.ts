@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ProgramEntity } from 'src/entities/program.entity';
 import { Repository } from 'typeorm';
+import { ProgramEntity } from '../entities/program.entity';
 
 function isExpired(startDate: string, endDate: string): boolean {
   const currentDate = new Date();

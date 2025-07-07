@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MediaEntity } from 'src/entities/media.entity';
 import { Repository } from 'typeorm';
+import { MediaEntity } from '../entities/media.entity';
 
 @Injectable()
 export class MediaService {

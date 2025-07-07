@@ -7,9 +7,9 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
-import { WorkoutEntity } from 'src/entities/workouts.entity';
-import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
+import { WorkoutEntity } from '../entities/workouts.entity';
+import { UserType } from '../utils/user-type.enum';
 import { WorkoutsService, WorkoutWithGroupedMedias } from './workouts.service';
 
 @Controller('workouts')

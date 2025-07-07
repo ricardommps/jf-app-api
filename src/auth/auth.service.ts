@@ -4,15 +4,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { CustomerService } from 'src/customer/customer.service';
-import { CustomerLoginDto } from 'src/dtos/customerLogin.dto';
-import { LoginDto } from 'src/dtos/login.dto';
-import { LoginPayload } from 'src/dtos/loginPayload.dto';
-import { ResponseLoginDto } from 'src/dtos/responseLogin.dto';
-import { UserLoginDto } from 'src/dtos/userLogin.dto';
-import { UserEntity } from 'src/entities/user.entity';
-import { UserService } from 'src/user/user.service';
-import { validatePassword } from 'src/utils/password';
+import { CustomerService } from '../customer/customer.service';
+import { CustomerLoginDto } from '../dtos/customerLogin.dto';
+import { LoginDto } from '../dtos/login.dto';
+import { LoginPayload } from '../dtos/loginPayload.dto';
+import { ResponseLoginDto } from '../dtos/responseLogin.dto';
+import { UserLoginDto } from '../dtos/userLogin.dto';
+import { UserEntity } from '../entities/user.entity';
+import { UserService } from '../user/user.service';
+import { validatePassword } from '../utils/password';
 
 @Injectable()
 export class AuthService {

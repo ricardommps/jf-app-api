@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
-import { HomeProgramDto } from 'src/dtos/program.dto';
-import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
+import { HomeProgramDto } from '../dtos/program.dto';
+import { UserType } from '../utils/user-type.enum';
 import { ProgramService } from './program.service';
 
 @Controller('program')

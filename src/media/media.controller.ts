@@ -1,8 +1,8 @@
 import { Controller, Get, UnauthorizedException } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
-import { UserId } from 'src/decorators/user-id.decorator';
-import { MediaEntity } from 'src/entities/media.entity';
-import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
+import { UserId } from '../decorators/user-id.decorator';
+import { MediaEntity } from '../entities/media.entity';
+import { UserType } from '../utils/user-type.enum';
 import { MediaService } from './media.service';
 
 @Controller('media')
