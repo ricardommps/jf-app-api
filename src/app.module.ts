@@ -26,10 +26,10 @@ import { WorkoutsModule } from './workouts/workouts.module';
       entities: [`${__dirname}/**/*.entity{.js,.ts}`],
       migrations: [`${__dirname}/migration/{.ts,*.js}`],
       migrationsRun: true,
-      //ssl: false,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: true,
+      // ssl: {
+      //   rejectUnauthorized: false,
+      // },
     }),
     JwtModule,
     UserModule,
