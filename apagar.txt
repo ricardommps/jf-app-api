@@ -1,0 +1,460 @@
+Workout : {
+  id:string
+  program_id:string
+  title:string
+  description:string
+  workout_item:WorkoutItem[]
+}
+
+WorkoutItem : {
+  id:string
+  workout_id:string
+  category:string
+  description:string
+  media:Media[]
+}
+
+Media : {
+  id:string
+  user_id:string
+  workout_item_id:string
+  title:string
+  thumbnail:string
+  videoUrl:string
+  instrucctions:string
+  workoutLoads:WorkoutLoad[]          
+  
+}
+
+WorkoutLoad : {
+  id:string
+  customer_id:string
+  media_id:string
+  load:string
+}
+
+nestjs typeorm
+
+@Entity('workouts')
+export class Workout {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+program_id: string;
+
+@Column()
+title: string;
+
+@Column()
+description: string;
+
+@OneToMany(() => WorkoutItem, item => item.workout, { cascade: true })
+workout_item: WorkoutItem[];
+}
+
+
+@Entity('workout_items')
+export class WorkoutItem {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@ManyToOne(() => Workout, workout => workout.workout_item, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'workout_id' })
+workout: Workout;
+
+@Column()
+workout_id: string;
+
+@Column()
+category: string;
+
+@Column()
+description: string;
+
+@OneToMany(() => Media, media => media.workout_item, { cascade: true })
+media: Media[];
+}
+
+
+@Entity('media')
+export class Media {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+user_id: string;
+
+@ManyToOne(() => WorkoutItem, item => item.media, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'workout_item_id' })
+workout_item: WorkoutItem;
+
+@Column()
+workout_item_id: string;
+
+@Column()
+title: string;
+
+@Column()
+thumbnail: string;
+
+@Column()
+videoUrl: string;
+
+@Column()
+instrucctions: string;
+
+@OneToMany(() => WorkoutLoad, load => load.media, { cascade: true })
+workoutLoads: WorkoutLoad[];
+}
+
+
+@Entity('workout_loads')
+export class WorkoutLoad {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+customer_id: string;
+
+@ManyToOne(() => Media, media => media.workoutLoads, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'media_id' })
+media: Media;
+
+@Column()
+media_id: string;
+
+@Column()
+load: string;
+}
+
+// Estrutura baseada em NestJS com TypeORM e Postgres
+// Inclui: Entidades, Migrations, Módulos, Services e Controllers
+
+// ================== ENTITIES ==================
+// src/entities/workout.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { WorkoutItem } from './workout-item.entity';
+
+@Entity('workouts')
+export class Workout {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+program_id: string;
+
+@Column()
+title: string;
+
+@Column()
+description: string;
+
+@OneToMany(() => WorkoutItem, item => item.workout, { cascade: true })
+workout_item: WorkoutItem[];
+}
+
+// src/entities/workout-item.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Workout } from './workout.entity';
+import { Media } from './media.entity';
+
+@Entity('workout_items')
+export class WorkoutItem {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+workout_id: string;
+
+@ManyToOne(() => Workout, workout => workout.workout_item, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'workout_id' })
+workout: Workout;
+
+@Column()
+category: string;
+
+@Column()
+description: string;
+
+@OneToMany(() => Media, media => media.workout_item, { cascade: true })
+media: Media[];
+}
+
+// src/entities/media.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { WorkoutItem } from './workout-item.entity';
+import { WorkoutLoad } from './workout-load.entity';
+
+@Entity('media')
+export class Media {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+user_id: string;
+
+@Column()
+workout_item_id: string;
+
+@ManyToOne(() => WorkoutItem, item => item.media, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'workout_item_id' })
+workout_item: WorkoutItem;
+
+@Column()
+title: string;
+
+@Column()
+thumbnail: string;
+
+@Column()
+videoUrl: string;
+
+@Column()
+instrucctions: string;
+
+@OneToMany(() => WorkoutLoad, load => load.media, { cascade: true })
+workoutLoads: WorkoutLoad[];
+}
+
+// src/entities/workout-load.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Media } from './media.entity';
+
+@Entity('workout_loads')
+export class WorkoutLoad {
+@PrimaryGeneratedColumn('uuid')
+id: string;
+
+@Column()
+customer_id: string;
+
+@Column()
+media_id: string;
+
+@ManyToOne(() => Media, media => media.workoutLoads, { onDelete: 'CASCADE' })
+@JoinColumn({ name: 'media_id' })
+media: Media;
+
+@Column()
+load: string;
+}
+
+// ================== DTOs ==================
+// src/modules/workout/dto/create-workout.dto.ts
+import { IsNotEmpty, IsString, ValidateNested, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CreateMediaDto {
+@IsString()
+@IsNotEmpty()
+user_id: string;
+
+@IsString()
+title: string;
+
+@IsString()
+thumbnail: string;
+
+@IsString()
+videoUrl: string;
+
+@IsString()
+instrucctions: string;
+}
+
+class CreateWorkoutItemDto {
+@IsString()
+@IsNotEmpty()
+category: string;
+
+@IsString()
+@IsNotEmpty()
+description: string;
+
+@IsArray()
+@ValidateNested({ each: true })
+@Type(() => CreateMediaDto)
+media: CreateMediaDto[];
+}
+
+export class CreateWorkoutDto {
+@IsString()
+@IsNotEmpty()
+program_id: string;
+
+@IsString()
+@IsNotEmpty()
+title: string;
+
+@IsString()
+@IsNotEmpty()
+description: string;
+
+@IsArray()
+@ValidateNested({ each: true })
+@Type(() => CreateWorkoutItemDto)
+workout_item: CreateWorkoutItemDto[];
+}
+
+// ================== MODULES/SERVICES/CONTROLLERS ==================
+
+// src/modules/workout/workout.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Workout } from '../../entities/workout.entity';
+import { WorkoutItem } from '../../entities/workout-item.entity';
+import { Media } from '../../entities/media.entity';
+import { WorkoutLoad } from '../../entities/workout-load.entity';
+import { WorkoutService } from './workout.service';
+import { WorkoutController } from './workout.controller';
+
+@Module({
+imports: [TypeOrmModule.forFeature([Workout, WorkoutItem, Media, WorkoutLoad])],
+controllers: [WorkoutController],
+providers: [WorkoutService],
+})
+export class WorkoutModule {}
+
+// src/modules/workout/workout.service.ts
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Workout } from '../../entities/workout.entity';
+
+@Injectable()
+export class WorkoutService {
+constructor(
+  @InjectRepository(Workout)
+  private workoutRepository: Repository<Workout>,
+) {}
+
+findAll() {
+  return this.workoutRepository.find({ relations: ['workout_item', 'workout_item.media', 'workout_item.media.workoutLoads'] });
+}
+
+findOne(id: string) {
+  return this.workoutRepository.findOne({ where: { id }, relations: ['workout_item', 'workout_item.media', 'workout_item.media.workoutLoads'] });
+}
+
+create(data: Partial<Workout>) {
+  const workout = this.workoutRepository.create(data);
+  return this.workoutRepository.save(workout);
+}
+
+async update(id: string, data: Partial<Workout>) {
+  await this.workoutRepository.update(id, data);
+  return this.findOne(id);
+}
+
+async remove(id: string) {
+  return this.workoutRepository.delete(id);
+}
+}
+
+// src/modules/workout/workout.controller.ts
+import { Controller, Get, Post, Body, Param, Put, Delete } from '@nestjs/common';
+import { WorkoutService } from './workout.service';
+import { CreateWorkoutDto } from './dto/create-workout.dto';
+
+@Controller('workouts')
+export class WorkoutController {
+constructor(private readonly workoutService: WorkoutService) {}
+
+@Get()
+findAll() {
+  return this.workoutService.findAll();
+}
+
+@Get(':id')
+findOne(@Param('id') id: string) {
+  return this.workoutService.findOne(id);
+}
+
+@Post()
+create(@Body() data: CreateWorkoutDto) {
+  return this.workoutService.create(data);
+}
+
+@Put(':id')
+update(@Param('id') id: string, @Body() data: Partial<CreateWorkoutDto>) {
+  return this.workoutService.update(id, data);
+}
+
+@Delete(':id')
+remove(@Param('id') id: string) {
+  return this.workoutService.remove(id);
+}
+}
+
+// ================== MIGRATIONS (exemplo usando TypeORM CLI) ==================
+
+// src/migrations/1700000000000-InitWorkoutModule.ts
+import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class InitWorkoutModule1700000000000 implements MigrationInterface {
+name = 'InitWorkoutModule1700000000000';
+
+public async up(queryRunner: QueryRunner): Promise<void> {
+  await queryRunner.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+  `);
+  await queryRunner.query(`CREATE TABLE "workouts" (
+      "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      "program_id" INTEGER NOT NULL,
+      "title" character varying NOT NULL,
+      "subtitle" character varying NOT NULL,
+      "description" character varying NOT NULL,
+      "heating" character varying NOT NULL,
+      "recovery" character varying NOT NULL,
+      "published" boolean NOT NULL,
+      "hide" boolean NOT NULL,
+      "finished" boolean NOT NULL,
+      "unrealized" boolean NOT NULL,
+      "running" boolean NOT NULL,
+      "date_published" TIMESTAMP NOT NULL,
+      "workout_date_other" TIMESTAMP NOT NULL,
+      "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+      "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
+      CONSTRAINT "PK_workouts_id" PRIMARY KEY ("id")
+      FOREIGN KEY ("program_id") REFERENCES "program"("id") ON DELETE CASCADE
+  )`);
+
+  await queryRunner.query(`CREATE TABLE "workout_items" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "workout_id" uuid NOT NULL,
+    "category" character varying NOT NULL,
+    "description" character varying NOT NULL,
+    CONSTRAINT "PK_workout_items_id" PRIMARY KEY ("id"),
+    CONSTRAINT "FK_workout_items_workout" FOREIGN KEY ("workout_id") REFERENCES "workouts"("id") ON DELETE CASCADE
+  )`);
+
+  await queryRunner.query(`CREATE TABLE "media" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "user_id" character varying NOT NULL,
+    "workout_item_id" uuid NOT NULL,
+    "title" character varying NOT NULL,
+    "thumbnail" character varying NOT NULL,
+    "videoUrl" character varying NOT NULL,
+    "instrucctions" character varying NOT NULL,
+    CONSTRAINT "PK_media_id" PRIMARY KEY ("id"),
+    CONSTRAINT "FK_media_workout_item" FOREIGN KEY ("workout_item_id") REFERENCES "workout_items"("id") ON DELETE CASCADE
+  )`);
+
+  await queryRunner.query(`CREATE TABLE "workout_loads" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "customer_id" character varying NOT NULL,
+    "media_id" uuid NOT NULL,
+    "load" character varying NOT NULL,
+    CONSTRAINT "PK_workout_loads_id" PRIMARY KEY ("id"),
+    CONSTRAINT "FK_workout_loads_media" FOREIGN KEY ("media_id") REFERENCES "media"("id") ON DELETE CASCADE
+  )`);
+}
+
+public async down(queryRunner: QueryRunner): Promise<void> {
+  await queryRunner.query(`DROP TABLE "workout_loads"`);
+  await queryRunner.query(`DROP TABLE "media"`);
+  await queryRunner.query(`DROP TABLE "workout_items"`);
+  await queryRunner.query(`DROP TABLE "workouts"`);
+}
+}
