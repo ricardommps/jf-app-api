@@ -39,15 +39,36 @@ export class WorkoutsController {
     return this.workoutsService.deleteWorkout(workoutId);
   }
 
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('clone')
+  async cloneWorkout(
+    @Query('workoutId') workoutId: string,
+    @Query('qnt') qnt: string,
+  ) {
+    return this.workoutsService.cloneWorkout(workoutId, Number(qnt));
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('send')
+  async sendWorkout(
+    @Query('workoutId') workoutId: string,
+    @Query('programsId') programsId: string,
+  ) {
+    const ids = programsId.split(',').map((id) => id.trim());
+    return this.workoutsService.sendWorkout(workoutId, ids);
+  }
+
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('list')
   async getWorkoutsByProgramId(
     @Query('programId') programId: number,
     @Query('running') running?: boolean,
+    @Query('published') published?: boolean,
   ): Promise<WorkoutEntity[]> {
     const workouts = await this.workoutsService.getWorkoutsByProgramIdSimple(
       programId,
       running,
+      published,
     );
     return workouts.map((program) => program);
   }

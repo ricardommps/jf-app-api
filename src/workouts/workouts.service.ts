@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ProgramEntity } from 'src/entities/program.entity';
 import { In, Repository } from 'typeorm';
 import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
@@ -45,102 +46,10 @@ export class WorkoutsService {
 
     @InjectRepository(MediaInfoEntity) // Injetar o repositório da tabela de junção
     private readonly mediaInfoRepository: Repository<MediaInfoEntity>,
+
+    @InjectRepository(ProgramEntity)
+    private programRepository: Repository<ProgramEntity>,
   ) {}
-
-  // async createWorkout(workout) {
-  //   const { workoutItems = [], ...rest } = workout;
-
-  //   // Salva o treino
-  //   const savedWorkout = await this.workoutRepository.save(rest);
-
-  //   for (const item of workoutItems) {
-  //     // Salva o item de treino
-  //     const workoutItem = await this.workoutItemRepository.save({
-  //       workout: savedWorkout,
-  //       category: item.category,
-  //       description: item.description || '',
-  //       mediaOrder: item.medias || [],
-  //     });
-
-  //     if (!workoutItem?.id) {
-  //       throw new Error('Falha ao salvar workoutItem ou ID não gerado.');
-  //     }
-
-  //     // Processa as mídias
-  //     const mediaGroups: number[][] = (item.medias || []).map((group: any) =>
-  //       Array.isArray(group)
-  //         ? group.filter(Boolean).map((media: any) => Number(media))
-  //         : [Number(group)],
-  //     );
-
-  //     for (const group of mediaGroups) {
-  //       const medias = await this.mediaRepository.find({
-  //         where: { id: In(group) },
-  //       });
-
-  //       const workoutItemMedias = medias.map((media) => ({
-  //         workoutItemId: workoutItem.id,
-  //         mediaId: media.id.toLocaleString(),
-  //       }));
-
-  //       await this.workoutItemMediaRepository.save(workoutItemMedias);
-  //     }
-
-  //     // Processa as informações da mídia (mediaInfo)
-  //     if (Array.isArray(item.mediasInfo) && item.mediasInfo.length > 0) {
-  //       for (const infoEntry of item.mediasInfo) {
-  //         if (!infoEntry.mediaId) {
-  //           throw new Error(
-  //             'mediaId é necessário para cada entrada de mediaInfo.',
-  //           );
-  //         }
-
-  //         const mediaInfo = {
-  //           workoutItem: workoutItem,
-  //           media: { id: infoEntry.mediaId },
-  //           method: infoEntry.method || null,
-  //           reps: infoEntry.reps || null,
-  //           reset: infoEntry.reset || null,
-  //           rir: infoEntry.rir || null,
-  //           cadence: infoEntry.cadence || null,
-  //           comments: infoEntry.comments || null,
-  //         };
-
-  //         await this.mediaInfoRepository.save(mediaInfo);
-  //       }
-  //     }
-  //   }
-
-  //   // Retorna o treino com as relações preenchidas
-  //   const workoutWithRelations = await this.workoutRepository.findOne({
-  //     where: { id: savedWorkout.id },
-  //     relations: ['workoutItems', 'workoutItems.medias'],
-  //   });
-
-  //   workoutWithRelations.workoutItems = workoutWithRelations.workoutItems.map(
-  //     (item) => {
-  //       const originalItem = workoutItems.find(
-  //         (i) => i.category === item.category,
-  //       );
-  //       const groupStructure = (originalItem?.medias || []).map((group: any) =>
-  //         Array.isArray(group)
-  //           ? group.filter(Boolean).map(String)
-  //           : [String(group)],
-  //       );
-
-  //       const groupedMedias = groupStructure.map((groupIds: string[]) =>
-  //         item.medias.filter((m) => groupIds.includes(String(m.id))),
-  //       );
-
-  //       return {
-  //         ...item,
-  //         medias: groupedMedias,
-  //       };
-  //     },
-  //   );
-
-  //   return workoutWithRelations;
-  // }
 
   async createWorkout(workout): Promise<WorkoutWithGroupedMedias> {
     const { workoutItems = [], ...rest } = workout;
@@ -175,6 +84,118 @@ export class WorkoutsService {
       }
     }
     return await this.getWorkoutWithRelations(savedWorkout.id, workoutItems);
+  }
+
+  async cloneWorkout(id: string, qntCopy: number) {
+    try {
+      const workout = await this.workoutRepository.findOne({
+        where: { id: id },
+        relations: [
+          'workoutItems',
+          'workoutItems.medias',
+          'workoutItems.mediaInfo',
+        ],
+      });
+
+      if (!workout) {
+        throw new Error('Workout não encontrado');
+      }
+
+      delete workout.id;
+      workout.datePublished = null;
+      workout.workoutDateOther = null;
+      workout.published = false;
+      workout.finished = false;
+      workout.unrealized = false;
+
+      if (workout.workoutItems) {
+        workout.workoutItems.forEach((item) => {
+          delete item.id;
+          delete item.workout;
+          if (item.medias) {
+            item.medias.forEach((media) => {
+              delete media.workoutItems;
+            });
+          }
+
+          if (item.mediaInfo) {
+            item.mediaInfo.forEach((info) => {
+              delete info.id;
+              delete info.workoutItem;
+              delete info.media;
+            });
+          }
+        });
+      }
+      const promises = [];
+      for (let i = 0; i < qntCopy; i++) {
+        const workoutCopy = JSON.parse(JSON.stringify(workout));
+        promises.push(this.createWorkout(workoutCopy));
+      }
+      const results = await Promise.all(promises);
+      return results;
+    } catch (error) {
+      throw new Error(`Error cloning workout: ${error.message}`);
+    }
+  }
+
+  async sendWorkout(workoutId: string, programIds: string[]) {
+    try {
+      const workout = await this.workoutRepository.findOne({
+        where: { id: workoutId },
+        relations: [
+          'workoutItems',
+          'workoutItems.medias',
+          'workoutItems.mediaInfo',
+        ],
+      });
+      if (!workout) {
+        throw new Error('Workout não encontrado');
+      }
+      const programs = await this.programRepository.find({
+        where: { id: In(programIds) },
+      });
+      if (programs.length !== programIds.length) {
+        throw new Error('Um ou mais programas não foram encontrados');
+      }
+      const workoutBase = { ...workout };
+      delete workoutBase.id;
+      workoutBase.datePublished = null;
+      workoutBase.workoutDateOther = null;
+      workoutBase.published = false;
+      workoutBase.finished = false;
+      workoutBase.unrealized = false;
+      if (workoutBase.workoutItems) {
+        workoutBase.workoutItems.forEach((item) => {
+          delete item.id;
+          delete item.workout;
+          if (item.medias) {
+            item.medias.forEach((media) => {
+              delete media.workoutItems;
+            });
+          }
+          if (item.mediaInfo) {
+            item.mediaInfo.forEach((info) => {
+              delete info.id;
+              delete info.workoutItem;
+              delete info.media;
+            });
+          }
+        });
+      }
+
+      const promises = programIds.map((programId) => {
+        const workoutCopy = JSON.parse(JSON.stringify(workoutBase));
+        workoutCopy.programId = programId;
+        return this.createWorkout(workoutCopy);
+      });
+
+      const results = await Promise.all(promises);
+
+      return results;
+    } catch (error) {
+      throw new Error(`Error sending workout: ${error.message}`);
+    }
   }
 
   async deleteWorkout(id: string) {
@@ -526,9 +547,11 @@ export class WorkoutsService {
       throw new Error(`Failed to get workouts: ${error.message}`);
     }
   }
+
   async getWorkoutsByProgramIdSimple(
     programId: number,
     running: boolean,
+    published?: boolean,
   ): Promise<WorkoutEntity[]> {
     try {
       const query = this.workoutRepository
@@ -538,6 +561,11 @@ export class WorkoutsService {
         .leftJoinAndSelect('workout.history', 'finished')
         .where('workout.programId = :programId', { programId })
         .andWhere('workout.running = :running', { running });
+
+      // Aplica filtro de published se fornecido
+      if (published !== undefined) {
+        query.andWhere('workout.published = :published', { published });
+      }
 
       // Aplica a ordenação condicional
       if (running) {
