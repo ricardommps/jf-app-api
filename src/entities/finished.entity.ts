@@ -7,12 +7,16 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { WorkoutEntity } from './workouts.entity';
+import { WorkoutEntity } from './workout.entity';
+import { WorkoutsEntity } from './workouts.entity';
 
 @Entity({ name: 'finished' })
 export class FinishedEntity {
   @PrimaryGeneratedColumn('rowid')
   id: number;
+
+  @Column({ name: 'workout_id' })
+  workoutId: number;
 
   @Column({ name: 'workouts_id' })
   workoutsId: number;
@@ -98,9 +102,15 @@ export class FinishedEntity {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => WorkoutEntity, (workout) => workout.id, {
+  @ManyToOne(() => WorkoutsEntity, (workout) => workout.id, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'workouts_id' })
-  workouts: WorkoutEntity;
+  workouts: WorkoutsEntity;
+
+  @ManyToOne(() => WorkoutEntity, (workout) => workout.id, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'workout_id' })
+  workout: WorkoutEntity;
 }

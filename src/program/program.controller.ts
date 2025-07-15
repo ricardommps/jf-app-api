@@ -1,4 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
+import { UserId } from 'src/decorators/user-id.decorator';
 import { Roles } from '../decorators/roles.decorator';
 import { HomeProgramDto } from '../dtos/program.dto';
 import { UserType } from '../utils/user-type.enum';
@@ -7,6 +8,13 @@ import { ProgramService } from './program.service';
 @Controller('program')
 export class ProgramController {
   constructor(private readonly programService: ProgramService) {}
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get()
+  async programs(@UserId() customerId: number): Promise<HomeProgramDto[]> {
+    const programs = await this.programService.myPrograms(customerId);
+    return programs.map((program) => new HomeProgramDto(program));
+  }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('myPrograms')

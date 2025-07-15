@@ -34,6 +34,7 @@ export class ProgramService {
       where: {
         customerId: customerId,
         hide: false,
+        vs2: true,
       },
       order: { updatedAt: 'DESC' },
     });

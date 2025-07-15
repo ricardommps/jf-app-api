@@ -10,18 +10,18 @@ import {
 } from 'typeorm';
 import { MediaEntity } from './media.entity';
 import { MediaInfoEntity } from './mediaInfo.entity';
-import { WorkoutEntity } from './workouts.entity';
+import { WorkoutsEntity } from './workouts.entity';
 
 @Entity('workout_items')
 export class WorkoutItemEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => WorkoutEntity, (workout) => workout.workoutItems, {
+  @ManyToOne(() => WorkoutsEntity, (workout) => workout.workoutItems, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'workout_id' })
-  workout: WorkoutEntity;
+  workout: WorkoutsEntity;
 
   @Column({ name: '_id' })
   '_id': string;

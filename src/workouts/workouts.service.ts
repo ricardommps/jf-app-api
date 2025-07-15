@@ -6,7 +6,7 @@ import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
 import { WorkoutItemMediaEntity } from '../entities/workoutItemMedia.entity';
 import { WorkoutItemEntity } from '../entities/workoutItens.entity';
-import { WorkoutEntity } from '../entities/workouts.entity';
+import { WorkoutsEntity } from '../entities/workouts.entity';
 
 export interface WorkoutWithGroupedMedias {
   id: string;
@@ -32,8 +32,8 @@ export interface WorkoutWithGroupedMedias {
 @Injectable()
 export class WorkoutsService {
   constructor(
-    @InjectRepository(WorkoutEntity)
-    private workoutRepository: Repository<WorkoutEntity>,
+    @InjectRepository(WorkoutsEntity)
+    private workoutRepository: Repository<WorkoutsEntity>,
 
     @InjectRepository(WorkoutItemEntity)
     private readonly workoutItemRepository: Repository<WorkoutItemEntity>,
@@ -512,7 +512,7 @@ export class WorkoutsService {
   async getWorkoutsByProgramId(
     programId: number,
     running: boolean,
-  ): Promise<WorkoutEntity[]> {
+  ): Promise<WorkoutsEntity[]> {
     try {
       const workouts = await this.workoutRepository.find({
         where: {
@@ -531,7 +531,7 @@ export class WorkoutsService {
   async getWorkoutsByProgramIdSimple_old(
     programId: number,
     running: boolean,
-  ): Promise<WorkoutEntity[]> {
+  ): Promise<WorkoutsEntity[]> {
     try {
       return await this.workoutRepository
         .createQueryBuilder('workout')
@@ -552,7 +552,7 @@ export class WorkoutsService {
     programId: number,
     running: boolean,
     published?: boolean,
-  ): Promise<WorkoutEntity[]> {
+  ): Promise<WorkoutsEntity[]> {
     try {
       const query = this.workoutRepository
         .createQueryBuilder('workout')
@@ -581,7 +581,7 @@ export class WorkoutsService {
     }
   }
 
-  async getWorkoutById(id: string): Promise<WorkoutEntity> {
+  async getWorkoutById(id: string): Promise<WorkoutsEntity> {
     try {
       const workout = await this.workoutRepository.findOne({
         where: { id },

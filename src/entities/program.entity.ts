@@ -9,7 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { CustomerEntity } from './customer.entity';
-import { WorkoutEntity } from './workouts.entity';
+import { WorkoutsEntity } from './workouts.entity';
 
 @Entity({ name: 'program' })
 export class ProgramEntity {
@@ -101,6 +101,6 @@ export class ProgramEntity {
   @JoinColumn({ name: 'customer_id', referencedColumnName: 'id' })
   customer?: CustomerEntity;
 
-  @OneToMany(() => WorkoutEntity, (workout) => workout.program)
-  workouts?: WorkoutEntity[];
+  @OneToMany(() => WorkoutsEntity, (workout) => workout.program)
+  workouts?: WorkoutsEntity[];
 }

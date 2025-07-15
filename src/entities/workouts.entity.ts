@@ -12,7 +12,7 @@ import { FinishedEntity } from './finished.entity';
 import { ProgramEntity } from './program.entity';
 import { WorkoutItemEntity } from './workoutItens.entity';
 @Entity('workouts')
-export class WorkoutEntity {
+export class WorkoutsEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

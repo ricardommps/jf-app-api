@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Roles } from '../decorators/roles.decorator';
-import { WorkoutEntity } from '../entities/workouts.entity';
+import { WorkoutsEntity } from '../entities/workouts.entity';
 import { UserType } from '../utils/user-type.enum';
 import { WorkoutsService, WorkoutWithGroupedMedias } from './workouts.service';
 
@@ -35,7 +35,7 @@ export class WorkoutsController {
   @Delete('')
   async deleteWorkout(
     @Query('workoutId') workoutId: string,
-  ): Promise<WorkoutEntity> {
+  ): Promise<WorkoutsEntity> {
     return this.workoutsService.deleteWorkout(workoutId);
   }
 
@@ -64,7 +64,7 @@ export class WorkoutsController {
     @Query('programId') programId: number,
     @Query('running') running?: boolean,
     @Query('published') published?: boolean,
-  ): Promise<WorkoutEntity[]> {
+  ): Promise<WorkoutsEntity[]> {
     const workouts = await this.workoutsService.getWorkoutsByProgramIdSimple(
       programId,
       running,
@@ -75,7 +75,7 @@ export class WorkoutsController {
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('workout')
-  async getWorkoutById(@Query('id') id: string): Promise<WorkoutEntity> {
+  async getWorkoutById(@Query('id') id: string): Promise<WorkoutsEntity> {
     const workouts = await this.workoutsService.getWorkoutById(id);
     return workouts;
   }
