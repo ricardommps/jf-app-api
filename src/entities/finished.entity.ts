@@ -96,6 +96,42 @@ export class FinishedEntity {
   })
   paceInSeconds: number;
 
+  @Column({
+    type: 'numeric',
+    precision: 8,
+    scale: 3,
+    nullable: true,
+    name: 'cool_down_duration',
+  })
+  coolDownDuration: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 8,
+    scale: 3,
+    nullable: true,
+    name: 'cool_down_intensities',
+  })
+  coolDownIntensities: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 8,
+    scale: 3,
+    nullable: true,
+    name: 'warm_up_duration',
+  })
+  warmUpDuration: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 8,
+    scale: 3,
+    nullable: true,
+    name: 'warm_up_intensities',
+  })
+  warmUpIntensities: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

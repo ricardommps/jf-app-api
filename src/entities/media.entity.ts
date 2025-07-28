@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { MediaInfoEntity } from './mediaInfo.entity';
 import { WorkoutItemEntity } from './workoutItens.entity';
+import { WorkoutLoadEntity } from './workoutLoad.entity';
 
 @Entity('media')
 export class MediaEntity {
@@ -41,4 +42,7 @@ export class MediaEntity {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(() => WorkoutLoadEntity, (workoutLoad) => workoutLoad.media)
+  workoutLoads: WorkoutLoadEntity[];
 }

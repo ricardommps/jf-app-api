@@ -10,6 +10,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { MediaModule } from './media/media.module';
 import { ProgramModule } from './program/program.module';
 import { UserModule } from './user/user.module';
+import { WorkoutLoadModule } from './workout-load/workout-load.module';
 import { WorkoutsModule } from './workouts/workouts.module';
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { WorkoutsModule } from './workouts/workouts.module';
     MediaModule,
     WorkoutsModule,
     FinishedModule,
+    WorkoutLoadModule,
   ],
   controllers: [],
   providers: [
