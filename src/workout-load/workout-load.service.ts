@@ -17,15 +17,10 @@ export class WorkoutLoadService {
     customerId: number,
     mediaId: number,
   ): Promise<WorkoutLoadEntity[]> {
-    console.log('=getWorkoutLoadsByCustomerAndMedia===', {
-      customerId,
-      mediaId,
-    });
     const workoutLoad = this.workoutLoadRepository.findByCustomerAndMedia(
       customerId,
       mediaId,
     );
-    console.log('--workoutLoad-', workoutLoad);
     return workoutLoad;
   }
 

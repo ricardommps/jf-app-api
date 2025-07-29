@@ -543,7 +543,6 @@ export class WorkoutsService {
         .orderBy('workout.displayOrder', 'ASC')
         .getMany();
     } catch (error) {
-      console.error('Error in getWorkoutsByProgramIdSimple:', error);
       throw new Error(`Failed to get workouts: ${error.message}`);
     }
   }
@@ -576,7 +575,6 @@ export class WorkoutsService {
 
       return await query.getMany();
     } catch (error) {
-      console.error('Error in getWorkoutsByProgramIdSimple:', error);
       throw new Error(`Failed to get workouts: ${error.message}`);
     }
   }

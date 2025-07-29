@@ -29,4 +29,10 @@ export class FinishedController {
       endDate,
     );
   }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('history')
+  async history(@UserId() userId: number) {
+    return await this.finishedService.history(userId);
+  }
 }

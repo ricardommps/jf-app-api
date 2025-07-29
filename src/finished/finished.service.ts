@@ -170,4 +170,86 @@ export class FinishedService {
       throw error;
     }
   }
+
+  async history(userId: number) {
+    // Query otimizada filtrando pelo mês atual
+    const query = `
+      SELECT 
+        finished.*,
+        training.name as "trainingName",
+        training.subtitle as "trainingSubtitle", 
+        training.description as "trainingDesc",
+        training.running as "trainingRunninge",
+        training.date_published as "trainingDatePublished",
+        training.id as "trainingId",
+        pro.name as "programName",
+        pro.type,
+        pro.goal,
+        pro.pv,
+        pro.pace as "programpace",
+        pro.difficulty_level as "difficulty",
+        pro.reference_month as "month",
+        pro.id as "programId"
+      FROM finished
+      INNER JOIN (
+        SELECT 
+          id::text as id,
+          name,
+          subtitle,
+          description,
+          running,
+          date_published,
+          program_id,
+          'old' as source
+        FROM workout
+        WHERE program_id IN (
+          SELECT id FROM program WHERE customer_id = $1
+        )
+        
+        UNION ALL
+        
+        SELECT 
+          id::text as id,
+          title as name,
+          subtitle,
+          description,
+          running,
+          date_published,
+          program_id,
+          'new' as source
+        FROM workouts
+        WHERE program_id IN (
+          SELECT id FROM program WHERE customer_id = $1
+        )
+      ) training ON (
+        (finished.workout_id::text = training.id AND training.source = 'old') OR
+        (finished.workouts_id::text = training.id AND training.source = 'new')
+      )
+      INNER JOIN program pro ON training.program_id = pro.id
+      WHERE finished.execution_day >= TO_CHAR(DATE_TRUNC('month', CURRENT_DATE), 'YYYY-MM-DD')
+        AND finished.execution_day <= TO_CHAR(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 MONTH' - INTERVAL '1 DAY', 'YYYY-MM-DD')
+      ORDER BY finished.execution_day DESC
+    `;
+
+    const finishedTrainings = await this.finishedRepository.manager.query(
+      query,
+      [userId],
+    );
+
+    // Função helper para conversão camelCase (mais eficiente)
+    const toCamelCase = (str: string): string =>
+      str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+
+    // Formatação otimizada usando Object.fromEntries
+    const formattedFinishedTrainings = finishedTrainings.map((finished) =>
+      Object.fromEntries(
+        Object.entries(finished).map(([key, value]) => [
+          toCamelCase(key),
+          value,
+        ]),
+      ),
+    );
+
+    return formattedFinishedTrainings;
+  }
 }
