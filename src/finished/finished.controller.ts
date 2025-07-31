@@ -31,7 +31,13 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
-  @Get('getVolumeByCustomer')
+  @Get('history')
+  async history(@UserId() userId: number) {
+    return await this.finishedService.history(userId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('getVolumeByCustomer/:userId')
   async getVolumeByCustomer(
     @Param('userId') userId: string,
     @Query('programId') programId: string,
@@ -44,11 +50,5 @@ export class FinishedController {
       startDate,
       endDate,
     );
-  }
-
-  @Roles(UserType.Admin, UserType.Root, UserType.User)
-  @Get('history')
-  async history(@UserId() userId: number) {
-    return await this.finishedService.history(userId);
   }
 }
