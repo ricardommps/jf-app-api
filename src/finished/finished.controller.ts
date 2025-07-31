@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { UserId } from 'src/decorators/user-id.decorator';
 import { Roles } from '../decorators/roles.decorator';
 import { UserType } from '../utils/user-type.enum';
@@ -18,6 +18,22 @@ export class FinishedController {
   @Get('getVolume')
   async getVolume(
     @UserId() userId: number,
+    @Query('programId') programId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return await this.finishedService.getVolume(
+      Number(userId),
+      Number(programId),
+      startDate,
+      endDate,
+    );
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('getVolumeByCustomer')
+  async getVolumeByCustomer(
+    @Param('userId') userId: string,
     @Query('programId') programId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
