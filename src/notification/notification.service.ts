@@ -1,0 +1,58 @@
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { NotificationEntity } from 'src/entities/notification.entity';
+import { IsNull, Repository } from 'typeorm';
+
+@Injectable()
+export class NotificationService {
+  constructor(
+    @InjectRepository(NotificationEntity)
+    private notificationRepository: Repository<NotificationEntity>,
+  ) {}
+
+  async getNotificationByRecipientId(
+    recipientId: number,
+  ): Promise<NotificationEntity[]> {
+    try {
+      const notifications = await this.notificationRepository.find({
+        where: {
+          recipientId,
+          readAt: IsNull(),
+        },
+        order: { createdAt: 'DESC' },
+      });
+      return notifications;
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
+
+  async readAt(recipientId: number, notificationId: number) {
+    try {
+      const notification = await this.notificationRepository.findOne({
+        where: {
+          id: notificationId,
+        },
+      });
+      if (!notification) {
+        throw new NotFoundException(
+          `Notification id: ${notificationId} not found`,
+        );
+      }
+
+      if (notification.recipientId !== recipientId) {
+        throw new UnauthorizedException();
+      }
+      notification.readAt = new Date();
+      return this.notificationRepository.save({
+        ...notification,
+      });
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
+}

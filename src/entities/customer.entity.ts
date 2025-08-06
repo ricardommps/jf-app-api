@@ -6,6 +6,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { InvoiceEntity } from './invoice.entity';
+import { NotificationEntity } from './notification.entity';
 import { ProgramEntity } from './program.entity';
 import { WorkoutLoadEntity } from './workoutLoad.entity';
 
@@ -112,4 +114,13 @@ export class CustomerEntity {
 
   @OneToMany(() => WorkoutLoadEntity, (workoutLoad) => workoutLoad.customer)
   workoutLoads: WorkoutLoadEntity[];
+
+  @OneToMany(
+    () => NotificationEntity,
+    (notification) => notification.recipientId,
+  )
+  notifications?: NotificationEntity[];
+
+  @OneToMany(() => InvoiceEntity, (invoice) => invoice.customer)
+  invoices?: InvoiceEntity[];
 }

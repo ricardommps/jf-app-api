@@ -226,8 +226,7 @@ export class FinishedService {
         (finished.workouts_id::text = training.id AND training.source = 'new')
       )
       INNER JOIN program pro ON training.program_id = pro.id
-      WHERE finished.execution_day >= TO_CHAR(DATE_TRUNC('month', CURRENT_DATE), 'YYYY-MM-DD')
-        AND finished.execution_day <= TO_CHAR(DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 MONTH' - INTERVAL '1 DAY', 'YYYY-MM-DD')
+      WHERE TO_TIMESTAMP(finished.execution_day, 'YYYY-MM-DD') >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY finished.execution_day DESC
     `;
 
@@ -249,6 +248,72 @@ export class FinishedService {
         ]),
       ),
     );
+
+    return formattedFinishedTrainings;
+  }
+
+  async findFinishedById(userId: number, id: number) {
+    const query = `
+      SELECT 
+        finished.*,
+        training.name as "trainingName",
+        training.subtitle as "trainingSubtitle",
+        training.description as "trainingDesc",
+        training.date_published as "trainingDatePublished",
+        training.id as "trainingId",
+        pro.name as "programName",
+        pro.type as "type",
+        pro.goal as "goal",
+        pro.pv as "pv",
+        pro.pace as "programpace",
+        pro.difficulty_level as "difficulty",
+        pro.reference_month as "month",
+        pro.id as "programId"
+      FROM finished
+      INNER JOIN (
+        SELECT 
+          id::text as id, 
+          name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id, 
+          'old' as source
+        FROM workout
+        UNION ALL
+        SELECT 
+          id::text as id, 
+          title as name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id, 
+          'new' as source
+        FROM workouts
+      ) training ON (
+        (finished.workout_id::text = training.id AND training.source = 'old') OR
+        (finished.workouts_id::text = training.id AND training.source = 'new')
+      )
+      LEFT JOIN program pro ON training.program_id = pro.id
+      WHERE pro.customer_id = $1
+        AND finished.id = $2
+      ORDER BY finished.execution_day DESC
+    `;
+    const finishedTrainings = await this.finishedRepository.manager.query(
+      query,
+      [userId, id],
+    );
+
+    const formattedFinishedTrainings = finishedTrainings.map((finished) => {
+      const formatted = {};
+      Object.keys(finished).forEach((key) => {
+        const camelCaseKey = key.replace(/_([a-z])/g, (match, letter) =>
+          letter.toUpperCase(),
+        );
+        formatted[camelCaseKey] = finished[key];
+      });
+      return formatted;
+    });
 
     return formattedFinishedTrainings;
   }

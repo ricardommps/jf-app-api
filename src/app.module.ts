@@ -7,7 +7,9 @@ import { AuthModule } from './auth/auth.module';
 import { CustomerModule } from './customer/customer.module';
 import { FinishedModule } from './finished/finished.module';
 import { RolesGuard } from './guards/roles.guard';
+import { InvoiceModule } from './invoice/invoice.module';
 import { MediaModule } from './media/media.module';
+import { NotificationModule } from './notification/notification.module';
 import { ProgramModule } from './program/program.module';
 import { UserModule } from './user/user.module';
 import { WorkoutLoadModule } from './workout-load/workout-load.module';
@@ -41,6 +43,8 @@ import { WorkoutsModule } from './workouts/workouts.module';
     WorkoutsModule,
     FinishedModule,
     WorkoutLoadModule,
+    NotificationModule,
+    InvoiceModule,
   ],
   controllers: [],
   providers: [
