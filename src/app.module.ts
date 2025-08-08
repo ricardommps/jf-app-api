@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { CustomerModule } from './customer/customer.module';
 import { FinishedModule } from './finished/finished.module';
+import { FirebaseModule } from './firebase/firebase.module';
 import { RolesGuard } from './guards/roles.guard';
 import { InvoiceModule } from './invoice/invoice.module';
 import { MediaModule } from './media/media.module';
@@ -45,6 +46,7 @@ import { WorkoutsModule } from './workouts/workouts.module';
     WorkoutLoadModule,
     NotificationModule,
     InvoiceModule,
+    FirebaseModule,
   ],
   controllers: [],
   providers: [

@@ -1,4 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { LoginType } from 'src/types/login.type';
 import { LoginDto } from '../dtos/login.dto';
 import { AuthService } from './auth.service';
 
@@ -12,7 +13,7 @@ export class AuthController {
   }
 
   @Post('login-customer')
-  async loginCustomer(@Body() loginDto: LoginDto) {
-    return this.authService.loginCustomer(loginDto);
+  async loginCustomer(@Body() loginDto: LoginType) {
+    return this.authService.loginCustomerAndRegisterPush(loginDto);
   }
 }

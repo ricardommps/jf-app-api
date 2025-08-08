@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { FirebaseModule } from 'src/firebase/firebase.module';
 import { CustomerModule } from '../customer/customer.module';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
@@ -9,6 +10,7 @@ import { AuthService } from './auth.service';
   imports: [
     UserModule,
     CustomerModule,
+    FirebaseModule,
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET,
