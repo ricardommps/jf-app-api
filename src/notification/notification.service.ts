@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CustomerService } from 'src/customer/customer.service';
 import { NotificationEntity } from 'src/entities/notification.entity';
 import { IsNull, Repository } from 'typeorm';
 
@@ -12,6 +13,8 @@ export class NotificationService {
   constructor(
     @InjectRepository(NotificationEntity)
     private notificationRepository: Repository<NotificationEntity>,
+
+    private readonly customersService: CustomerService,
   ) {}
 
   async getNotificationByRecipientId(
@@ -29,6 +32,13 @@ export class NotificationService {
     } catch (error) {
       throw new Error(error);
     }
+  }
+
+  async createNotification(notification) {
+    await this.customersService.findCustomerById(notification.recipientId);
+    return this.notificationRepository.save({
+      ...notification,
+    });
   }
 
   async readAt(recipientId: number, notificationId: number) {

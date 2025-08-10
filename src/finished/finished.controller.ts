@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { UserId } from 'src/decorators/user-id.decorator';
+import { FinishedEntity } from 'src/entities/finished.entity';
 import { Roles } from '../decorators/roles.decorator';
 import { UserType } from '../utils/user-type.enum';
 import { FinishedService } from './finished.service';
@@ -34,6 +35,17 @@ export class FinishedController {
   @Get('history')
   async history(@UserId() userId: number) {
     return await this.finishedService.history(userId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Put('/review/:customerId/:id')
+  async reviewWorkout(
+    @Body() reviewWorkoutDto,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ): Promise<FinishedEntity> {
+    const { feedback } = reviewWorkoutDto;
+    return this.finishedService.reviewWorkout(customerId, Number(id), feedback);
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)

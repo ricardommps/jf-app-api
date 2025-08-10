@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Expo from 'expo-server-sdk';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import { Database, child, get, getDatabase, ref, set } from 'firebase/database';
+import { NotificationType } from 'src/types/notification.type';
 
 @Injectable()
 export class FirebaseService {
@@ -102,13 +103,50 @@ export class FirebaseService {
     const messages = [
       {
         to: token,
-        title: 'Olá Ricardo!',
-        body: 'Tem novos treinos disponíveis!',
+        title: 'Teste',
+        body: 'Ola teste',
       },
     ];
 
     try {
       const result = await expo.sendPushNotificationsAsync(messages);
+
+      const hasError = result.some((r) => r.status !== 'ok');
+
+      if (hasError) {
+        console.error('Erro ao enviar notificação:', result);
+        throw new InternalServerErrorException('Erro ao enviar notificação');
+      }
+
+      return 200;
+    } catch (error) {
+      console.error('Erro na requisição de notificação:', error);
+      throw new InternalServerErrorException('Falha ao enviar notificação');
+    }
+  }
+
+  async sendNotificationNew(
+    customerId: string,
+    messages: NotificationType,
+  ): Promise<number> {
+    const expo = new Expo();
+    const { token } = await this.getToken(customerId);
+    if (!Expo.isExpoPushToken(token)) {
+      throw new InternalServerErrorException(
+        'Token inválido para notificações Expo',
+      );
+    }
+
+    const notification = [
+      {
+        to: token,
+        title: messages.title,
+        body: messages.body,
+      },
+    ];
+
+    try {
+      const result = await expo.sendPushNotificationsAsync(notification);
 
       const hasError = result.some((r) => r.status !== 'ok');
 

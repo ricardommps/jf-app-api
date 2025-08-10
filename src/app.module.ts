@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { CustomerModule } from './customer/customer.module';
 import { FinishedModule } from './finished/finished.module';
 import { FirebaseModule } from './firebase/firebase.module';
@@ -47,6 +48,7 @@ import { WorkoutsModule } from './workouts/workouts.module';
     NotificationModule,
     InvoiceModule,
     FirebaseModule,
+    CloudinaryModule,
   ],
   controllers: [],
   providers: [

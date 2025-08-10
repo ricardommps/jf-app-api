@@ -1,6 +1,8 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProgramEntity } from 'src/entities/program.entity';
+import { FirebaseService } from 'src/firebase/firebase.service';
+import { NotificationService } from 'src/notification/notification.service';
 import { Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
@@ -20,8 +22,9 @@ export class FinishedService {
     @InjectRepository(WorkoutsEntity)
     private readonly workoutRepository: Repository<WorkoutsEntity>,
 
-    @InjectRepository(ProgramEntity)
-    private readonly programRepository: Repository<ProgramEntity>,
+    private readonly firebaseService: FirebaseService,
+
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createFinished(payload) {
@@ -39,6 +42,12 @@ export class FinishedService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async getFinishedById(id: number): Promise<FinishedEntity> {
+    return this.finishedRepository.findOne({
+      where: { id },
+    });
   }
 
   async getVolume(
@@ -316,5 +325,49 @@ export class FinishedService {
     });
 
     return formattedFinishedTrainings;
+  }
+
+  async reviewWorkout(customerId: string, id: number, feedback: string) {
+    const finished = await this.finishedRepository.findOne({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!finished) {
+      throw new NotFoundException(`finished not found`);
+    }
+
+    const finishedSave = await this.finishedRepository.save({
+      ...finished,
+      feedback: feedback,
+      review: true,
+    });
+
+    if (customerId && finished) {
+      const payloadNotification = {
+        recipientId: customerId,
+        title: 'Olá',
+        content: 'O feedback do seu último treino já está disponível! Vem ver!',
+        type: 'feedback',
+        link: finishedSave.id,
+      };
+      const notification =
+        await this.notificationService.createNotification(payloadNotification);
+      const message = {
+        title: payloadNotification.title,
+        body: payloadNotification.content,
+        data: {
+          screen: 'feedback',
+          params: {
+            feedbackId: finishedSave.id,
+            notificationId: notification.id,
+          },
+        },
+      };
+      await this.firebaseService.sendNotificationNew(customerId, message);
+    }
+
+    return this.getFinishedById(id);
   }
 }

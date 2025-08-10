@@ -59,8 +59,6 @@ export class AuthService {
     if (!isMatch) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    console.log(loginDto);
-    // Salva o push token usando o serviço injetado
     if (loginDto.pushToken && customer.id) {
       try {
         const userId = customer.id;
