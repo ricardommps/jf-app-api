@@ -96,4 +96,39 @@ export class AuthService {
       user: new CustomerLoginDto(customer),
     };
   }
+
+  async loginUserProfileWithToken(token: string): Promise<ResponseLoginDto> {
+    let payload: {
+      userId: number;
+      typeUser: number;
+      password: string;
+      iat: number;
+      exp: number;
+    };
+
+    try {
+      payload = this.jwtService.verify(token);
+    } catch {
+      throw new UnauthorizedException('Token inválido ou expirado');
+    }
+
+    // Busca usuário pelo ID
+    const user = await this.customerService.findCustomerById(payload.userId);
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    // Valida se o hash de senha do token bate com o hash atual do banco
+    if (user.password !== payload.password) {
+      throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    // Gera novo access token para sessão atual
+    const accessToken = this.jwtService.sign({ ...new LoginPayload(user) });
+
+    return {
+      accessToken,
+      user: new CustomerLoginDto(user),
+    };
+  }
 }
