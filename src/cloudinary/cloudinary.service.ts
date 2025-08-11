@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import * as toStream from 'buffer-to-stream';
+import toStream from 'buffer-to-stream';
 import { UploadApiErrorResponse, UploadApiResponse, v2 } from 'cloudinary';
 import { File as MulterFile } from 'multer'; // 👈 importando o tipo
 
