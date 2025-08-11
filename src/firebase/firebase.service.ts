@@ -29,25 +29,34 @@ export class FirebaseService {
     this.dbRef = ref(this.db);
   }
 
+  /**
+   * Salva token para um usuário (permite múltiplos, evita duplicados)
+   */
   async saveToken(userId: string, token: string): Promise<void> {
     try {
-      const snapshot = await get(child(this.dbRef, `userTokens/${userId}/`));
-      const values = snapshot.val() ?? {};
-      const payload = { ...values, token };
-      await set(ref(this.db, `userTokens/${userId}/`), payload);
+      const snapshot = await get(child(this.dbRef, `userTokens/${userId}`));
+      const tokens: string[] = snapshot.val()?.tokens ?? [];
+
+      if (!tokens.includes(token)) {
+        tokens.push(token);
+        await set(ref(this.db, `userTokens/${userId}`), { tokens });
+      }
     } catch (error) {
       console.error('Error saving token:', error);
-      throw error;
+      throw new InternalServerErrorException('Falha ao salvar token');
     }
   }
 
-  async getToken(userId: string): Promise<any> {
+  /**
+   * Retorna lista de tokens de um usuário
+   */
+  async getToken(userId: string): Promise<string[]> {
     try {
       const snapshot = await get(child(this.dbRef, `userTokens/${userId}`));
-      return snapshot.val() ?? {};
+      return snapshot.val()?.tokens ?? [];
     } catch (error) {
       console.error('Error getting token:', error);
-      throw error;
+      throw new InternalServerErrorException('Falha ao obter token');
     }
   }
 
@@ -58,7 +67,7 @@ export class FirebaseService {
       });
     } catch (error) {
       console.error('Error saving sample:', error);
-      throw error;
+      throw new InternalServerErrorException('Falha ao salvar amostra');
     }
   }
 
@@ -86,31 +95,43 @@ export class FirebaseService {
       };
     } catch (error) {
       console.error('Error getting samples:', error);
-      throw error;
+      throw new InternalServerErrorException('Falha ao obter amostras');
     }
   }
 
-  async sendNotification(customerId: string): Promise<number> {
+  /**
+   * Método genérico para enviar notificações para todos os tokens do usuário
+   */
+  private async sendPushToUserTokens(
+    userId: string,
+    title: string,
+    body: string,
+  ): Promise<number> {
     const expo = new Expo();
-    const { token } = await this.getToken(customerId);
+    const tokens = await this.getToken(userId);
 
-    if (!Expo.isExpoPushToken(token)) {
+    if (!tokens.length) {
       throw new InternalServerErrorException(
-        'Token inválido para notificações Expo',
+        'Nenhum token válido encontrado para este usuário',
       );
     }
 
-    const messages = [
-      {
+    const messages = tokens
+      .filter((token) => Expo.isExpoPushToken(token))
+      .map((token) => ({
         to: token,
-        title: 'Teste',
-        body: 'Ola teste',
-      },
-    ];
+        title,
+        body,
+      }));
+
+    if (!messages.length) {
+      throw new InternalServerErrorException(
+        'Nenhum token válido para notificações Expo',
+      );
+    }
 
     try {
       const result = await expo.sendPushNotificationsAsync(messages);
-
       const hasError = result.some((r) => r.status !== 'ok');
 
       if (hasError) {
@@ -125,40 +146,20 @@ export class FirebaseService {
     }
   }
 
+  /**
+   * Envio simples de notificação
+   */
+  async sendNotification(customerId: string): Promise<number> {
+    return this.sendPushToUserTokens(customerId, 'Teste', 'Olá teste');
+  }
+
+  /**
+   * Envio de notificação com dados personalizados
+   */
   async sendNotificationNew(
     customerId: string,
     messages: NotificationType,
   ): Promise<number> {
-    const expo = new Expo();
-    const { token } = await this.getToken(customerId);
-    if (!Expo.isExpoPushToken(token)) {
-      throw new InternalServerErrorException(
-        'Token inválido para notificações Expo',
-      );
-    }
-
-    const notification = [
-      {
-        to: token,
-        title: messages.title,
-        body: messages.body,
-      },
-    ];
-
-    try {
-      const result = await expo.sendPushNotificationsAsync(notification);
-
-      const hasError = result.some((r) => r.status !== 'ok');
-
-      if (hasError) {
-        console.error('Erro ao enviar notificação:', result);
-        throw new InternalServerErrorException('Erro ao enviar notificação');
-      }
-
-      return 200;
-    } catch (error) {
-      console.error('Erro na requisição de notificação:', error);
-      throw new InternalServerErrorException('Falha ao enviar notificação');
-    }
+    return this.sendPushToUserTokens(customerId, messages.title, messages.body);
   }
 }
