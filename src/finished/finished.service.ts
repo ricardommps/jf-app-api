@@ -345,6 +345,12 @@ export class FinishedService {
     });
 
     if (customerId && finished) {
+      // {
+      //   title: 'Título da Notificação',
+      //   body: 'Corpo da notificação',
+      //   screen: 'profile',
+      //   params: { id: '123', source: 'push' },
+      // }
       const payloadNotification = {
         recipientId: customerId,
         title: 'Olá',
@@ -358,11 +364,9 @@ export class FinishedService {
         title: payloadNotification.title,
         body: payloadNotification.content,
         data: {
+          url: `jfapp://feedback/?feedbackId=${finishedSave.id}&notificationId=${notification.id}&source=push`,
           screen: 'feedback',
-          params: {
-            feedbackId: finishedSave.id,
-            notificationId: notification.id,
-          },
+          params: `{\"feedbackId\":\"${finishedSave.id}\",\"notificationId\":\"${notification.id}\",\"source\":\"push\"}`,
         },
       };
       await this.firebaseService.sendNotificationNew(customerId, message);
