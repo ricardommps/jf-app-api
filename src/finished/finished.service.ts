@@ -364,7 +364,7 @@ export class FinishedService {
         title: payloadNotification.title,
         body: payloadNotification.content,
         data: {
-          url: `jfapp://feedback/?feedbackId=${finishedSave.id}&notificationId=${notification.id}&source=push`,
+          url: `jfapp://feedback?feedbackId=${finishedSave.id}&notificationId=${notification.id}`,
           screen: 'feedback',
           params: `{\"feedbackId\":\"${finishedSave.id}\",\"notificationId\":\"${notification.id}\",\"source\":\"push\"}`,
         },
