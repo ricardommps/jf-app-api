@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { File as MulterFile } from 'multer';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { PasswordType } from 'src/types/password.type';
+import { createPasswordHashed, validatePassword } from 'src/utils/password';
 import { Repository } from 'typeorm';
 import { CustomerEntity } from '../entities/customer.entity';
 
@@ -53,5 +60,42 @@ export class CustomerService {
     return this.customerRepository.save({
       ...customer,
     });
+  }
+
+  async updatePasswordCustomer(
+    updatePassword: PasswordType,
+    userId: number,
+  ): Promise<CustomerEntity> {
+    const customer = await this.findCustomerById(userId);
+
+    if (!customer.password) {
+      throw new BadRequestException('Customer has no password set');
+    }
+
+    if (!updatePassword.lastPassword) {
+      throw new BadRequestException('Senha atual é obrigatória');
+    }
+
+    // Verifica se a senha antiga confere
+    const isMatch = await validatePassword(
+      updatePassword.lastPassword,
+      customer.password,
+    );
+    if (!isMatch) {
+      throw new UnauthorizedException('Senha atual incorreta');
+    }
+
+    // Gera hash da nova senha
+    const passwordHashed = await createPasswordHashed(
+      updatePassword.newPassword,
+    );
+
+    // Atualiza e salva
+    const updatedCustomer = await this.customerRepository.save({
+      ...customer,
+      password: passwordHashed,
+      temporaryPassword: false,
+    });
+    return updatedCustomer;
   }
 }

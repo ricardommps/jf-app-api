@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -10,6 +11,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { File as MulterFile } from 'multer';
 import { Roles } from 'src/decorators/roles.decorator';
 import { UserId } from 'src/decorators/user-id.decorator';
+import { CustomerEntity } from 'src/entities/customer.entity';
+import { PasswordType } from 'src/types/password.type';
 import { UserType } from 'src/utils/user-type.enum';
 import { CustomerService } from './customer.service';
 
@@ -27,5 +30,14 @@ export class CustomerController {
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@UploadedFile() file: MulterFile, @UserId() userId: number) {
     return this.customerService.uploadImageToCloudinary(file, userId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Patch('/resetPassword')
+  async updatePasswordUser(
+    @Body() updatePassword: PasswordType,
+    @UserId() userId: number,
+  ): Promise<CustomerEntity> {
+    return this.customerService.updatePasswordCustomer(updatePassword, userId);
   }
 }
