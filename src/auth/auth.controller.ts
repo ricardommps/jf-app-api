@@ -32,4 +32,12 @@ export class AuthController {
 
     return this.authService.loginUserProfileWithToken(token.trim());
   }
+
+  @Post('refresh-customer')
+  async refreshCustomer(@Body('refreshToken') refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token não informado');
+    }
+    return this.authService.refreshCustomerToken(refreshToken.trim());
+  }
 }

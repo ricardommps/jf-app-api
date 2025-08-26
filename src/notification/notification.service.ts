@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { CustomerService } from 'src/customer/customer.service';
 import { NotificationEntity } from 'src/entities/notification.entity';
+import { FirebaseService } from 'src/firebase/firebase.service';
 import { IsNull, Repository } from 'typeorm';
 
 @Injectable()
@@ -15,6 +16,8 @@ export class NotificationService {
     private notificationRepository: Repository<NotificationEntity>,
 
     private readonly customersService: CustomerService,
+
+    private readonly firebaseService: FirebaseService,
   ) {}
 
   async getNotificationByRecipientId(
@@ -36,6 +39,23 @@ export class NotificationService {
 
   async createNotification(notification) {
     await this.customersService.findCustomerById(notification.recipientId);
+    return this.notificationRepository.save({
+      ...notification,
+    });
+  }
+
+  async sendNotification(notification) {
+    console.log('-sendNotification--', notification);
+    await this.customersService.findCustomerById(notification.recipientId);
+    const message = {
+      title: notification.title,
+      body: notification.content,
+      data: {},
+    };
+    await this.firebaseService.sendNotificationNew(
+      notification.recipientId,
+      message,
+    );
     return this.notificationRepository.save({
       ...notification,
     });

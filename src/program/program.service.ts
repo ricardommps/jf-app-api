@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { WorkoutsEntity } from 'src/entities/workouts.entity';
 import { Repository } from 'typeorm';
 import { ProgramEntity } from '../entities/program.entity';
 
@@ -27,6 +28,9 @@ export class ProgramService {
   constructor(
     @InjectRepository(ProgramEntity)
     private readonly programRepository: Repository<ProgramEntity>,
+
+    @InjectRepository(WorkoutsEntity)
+    private workoutRepository: Repository<WorkoutsEntity>,
   ) {}
 
   async myPrograms(customerId: number): Promise<ProgramEntity[]> {
@@ -65,6 +69,50 @@ export class ProgramService {
         message: 'Seu planejamento acabou! Está na hora de evoluirmos.',
       };
     }
+    return program;
+  }
+
+  // async findProgramByIdUViewPdf(programId: number) {
+  //   const program = await this.programRepository.findOne({
+  //     where: {
+  //       id: programId,
+  //       workouts: {
+  //         published: true,
+  //       },
+  //     },
+  //     relations: ['workouts', 'workouts.medias', 'customer'],
+
+  //     order: {
+  //       workouts: {
+  //         datePublished: 'ASC',
+  //       },
+  //     },
+  //   });
+
+  //   if (!program) {
+  //     throw new NotFoundException(`Program id: ${programId} not found`);
+  //   }
+  //   return program;
+  // }
+
+  async findProgramByIdUViewPdf(programId: number) {
+    const program = await this.programRepository
+      .createQueryBuilder('program')
+      .leftJoinAndSelect(
+        'program.workouts',
+        'workout',
+        'workout.published = true',
+      )
+      .leftJoinAndSelect('workout.medias', 'media') // Adicione diretamente aqui
+      .leftJoinAndSelect('program.customer', 'customer')
+      .where('program.id = :programId', { programId })
+      .orderBy('workout.datePublished', 'ASC')
+      .getOne();
+
+    if (!program) {
+      throw new NotFoundException(`Program id: ${programId} not found`);
+    }
+
     return program;
   }
 }

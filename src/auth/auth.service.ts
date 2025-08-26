@@ -22,20 +22,51 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly customerService: CustomerService,
-    private readonly firebaseService: FirebaseService, // Injetando o FirebaseService
+    private readonly firebaseService: FirebaseService,
   ) {}
+
+  // private generateTokens(payload: LoginPayload) {
+  //   const accessToken = this.jwtService.sign(
+  //     { ...payload },
+  //     { expiresIn: '1d' }, // access token expira rápido
+  //   );
+
+  //   const refreshToken = this.jwtService.sign(
+  //     { ...payload },
+  //     { expiresIn: '7d' }, // refresh token dura mais tempo
+  //   );
+
+  //   return { accessToken, refreshToken };
+  // }
+
+  private generateTokens(payload: LoginPayload) {
+    const accessToken = this.jwtService.sign(
+      { ...payload },
+      { expiresIn: '5m' }, // access token expira em 5 minutos
+    );
+
+    const refreshToken = this.jwtService.sign(
+      { ...payload },
+      { expiresIn: '10m' }, // refresh token expira em 10 minutos
+    );
+
+    return { accessToken, refreshToken };
+  }
 
   async login(loginDto: LoginDto) {
     const user: UserEntity | undefined = await this.userService
       .findByEmail(loginDto.email)
       .catch(() => undefined);
+
     const isMatch = await validatePassword(
       loginDto.password,
       user?.password || '',
     );
+
     if (!user || !isMatch) {
       throw new NotFoundException('Email ou senha inválidos');
     }
+
     return {
       accessToken: this.jwtService.sign({ ...new LoginPayload(user) }),
       user: new UserLoginDto(user),
@@ -59,14 +90,12 @@ export class AuthService {
     if (!isMatch) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
     if (loginDto.pushToken && customer.id) {
-      try {
-        const userId = customer.id;
-        const token = loginDto.pushToken;
-        await this.firebaseService.saveToken(String(userId), token);
-      } catch (error) {
-        throw error;
-      }
+      await this.firebaseService.saveToken(
+        String(customer.id),
+        loginDto.pushToken,
+      );
     }
 
     return {
@@ -75,7 +104,9 @@ export class AuthService {
     };
   }
 
-  async loginCustomer(loginDto: LoginType): Promise<ResponseLoginDto> {
+  async loginCustomer(
+    loginDto: LoginType,
+  ): Promise<ResponseLoginDto & { refreshToken: string }> {
     const customer = await this.customerService.findCustomerByCpf(loginDto.cpf);
 
     if (!customer?.password) {
@@ -91,10 +122,46 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    const payload = new LoginPayload(customer);
+    const { accessToken, refreshToken } = this.generateTokens(payload);
+
     return {
-      accessToken: this.jwtService.sign({ ...new LoginPayload(customer) }),
+      accessToken,
+      refreshToken,
       user: new CustomerLoginDto(customer),
     };
+  }
+
+  async refreshCustomerToken(
+    refreshToken: string,
+  ): Promise<ResponseLoginDto & { refreshToken: string }> {
+    try {
+      const payload = this.jwtService.verify(refreshToken);
+
+      const customer = await this.customerService.findCustomerById(
+        payload.userId,
+      );
+
+      if (!customer) {
+        throw new NotFoundException('Cliente não encontrado');
+      }
+
+      if (customer.password !== payload.password) {
+        throw new UnauthorizedException('Credenciais inválidas');
+      }
+
+      const newPayload = new LoginPayload(customer);
+      const { accessToken, refreshToken: newRefreshToken } =
+        this.generateTokens(newPayload);
+
+      return {
+        accessToken,
+        refreshToken: newRefreshToken,
+        user: new CustomerLoginDto(customer),
+      };
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
   }
 
   async loginUserProfileWithToken(token: string): Promise<ResponseLoginDto> {
@@ -112,18 +179,15 @@ export class AuthService {
       throw new UnauthorizedException('Token inválido ou expirado');
     }
 
-    // Busca usuário pelo ID
     const user = await this.customerService.findCustomerById(payload.userId);
     if (!user) {
       throw new NotFoundException('Usuário não encontrado');
     }
 
-    // Valida se o hash de senha do token bate com o hash atual do banco
     if (user.password !== payload.password) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // Gera novo access token para sessão atual
     const accessToken = this.jwtService.sign({ ...new LoginPayload(user) });
 
     return {

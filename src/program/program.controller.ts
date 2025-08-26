@@ -25,6 +25,12 @@ export class ProgramController {
     return programs.map((program) => new HomeProgramDto(program));
   }
 
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('/viewPdf/:programId')
+  async findProgramByIdUViewPdf(@Param('programId') programId) {
+    return await this.programService.findProgramByIdUViewPdf(programId);
+  }
+
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('/:programId')
   async findProgramById(@Param('programId') programId) {

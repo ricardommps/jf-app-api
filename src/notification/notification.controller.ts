@@ -1,4 +1,11 @@
-import { Controller, Get, Param, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { NotificationEntity } from 'src/entities/notification.entity';
 import { Roles } from '../decorators/roles.decorator';
 import { UserId } from '../decorators/user-id.decorator';
@@ -8,6 +15,12 @@ import { NotificationService } from './notification.service';
 @Controller('notification')
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
+
+  @Roles(UserType.Admin)
+  @Post('/send')
+  async sendNotification(@Body() notifications) {
+    return this.notificationService.sendNotification(notifications);
+  }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get()

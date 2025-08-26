@@ -38,6 +38,12 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root)
+  @Get('/unreviewedFinished')
+  async getUnreviewedFinished() {
+    return this.finishedService.getUnreviewedFinished();
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
   @Put('/review/:customerId/:id')
   async reviewWorkout(
     @Body() reviewWorkoutDto,

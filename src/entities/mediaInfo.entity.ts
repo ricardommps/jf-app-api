@@ -28,7 +28,7 @@ export class MediaInfoEntity {
   media: MediaEntity;
 
   @Column({ nullable: true, name: 'media_id' })
-  mediaId: string;
+  mediaId: number; // Mudado de string para number
 
   @Column({ nullable: true })
   method: string;

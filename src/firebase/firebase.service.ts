@@ -54,72 +54,136 @@ export class FirebaseService {
     }
   }
 
+  // async sendNotificationNew(
+  //   userId: string,
+  //   message: {
+  //     title: string;
+  //     body: string;
+  //     data?: {
+  //       url: string;
+  //       screen: string;
+  //       params: string; // JSON string
+  //     };
+  //   },
+  // ): Promise<number> {
+  //   const expo = new Expo();
+  //   const tokens = await this.getToken(userId);
+
+  //   if (!tokens.length) {
+  //     throw new InternalServerErrorException(
+  //       'Nenhum token válido encontrado para este usuário',
+  //     );
+  //   }
+
+  //   const { title, body, data } = message;
+  //   const { screen, params: paramsString, url } = data;
+
+  //   // Como paramsString não é usado internamente, pode remover o parse.
+
+  //   const firebasePayload = {
+  //     notification: {
+  //       title,
+  //       body,
+  //     },
+  //     data: {
+  //       url,
+  //       screen,
+  //       params: paramsString, // Envia direto como string JSON
+  //     },
+  //   };
+
+  //   const messages = tokens
+  //     .filter((token) => Expo.isExpoPushToken(token))
+  //     .map((token) => ({
+  //       to: token,
+  //       title: firebasePayload.notification.title,
+  //       body: firebasePayload.notification.body,
+  //       data: firebasePayload.data,
+  //     }));
+
+  //   if (!messages.length) {
+  //     throw new InternalServerErrorException(
+  //       'Nenhum token válido para notificações Expo',
+  //     );
+  //   }
+
+  //   try {
+  //     const result = await expo.sendPushNotificationsAsync(messages);
+  //     const hasError = result.some((r) => r.status !== 'ok');
+
+  //     if (hasError) {
+  //       console.error('Erro ao enviar notificação:', result);
+  //       throw new InternalServerErrorException('Erro ao enviar notificação');
+  //     }
+
+  //     return 200;
+  //   } catch (error) {
+  //     console.error('Erro na requisição de notificação:', error);
+  //     throw new InternalServerErrorException('Falha ao enviar notificação');
+  //   }
+  // }
+
   async sendNotificationNew(
     userId: string,
     message: {
       title: string;
       body: string;
-      data: {
-        url: string;
-        screen: string;
-        params: string; // JSON string
+      data?: {
+        url?: string;
+        screen?: string;
+        params?: string; // JSON string opcional
       };
     },
   ): Promise<number> {
     const expo = new Expo();
     const tokens = await this.getToken(userId);
 
-    if (!tokens.length) {
-      throw new InternalServerErrorException(
-        'Nenhum token válido encontrado para este usuário',
-      );
-    }
+    if (tokens.length) {
+      const { title, body, data } = message;
 
-    const { title, body, data } = message;
-    const { screen, params: paramsString, url } = data;
+      const firebasePayload: any = {
+        notification: { title, body },
+        data: {},
+      };
 
-    // Como paramsString não é usado internamente, pode remover o parse.
-
-    const firebasePayload = {
-      notification: {
-        title,
-        body,
-      },
-      data: {
-        url,
-        screen,
-        params: paramsString, // Envia direto como string JSON
-      },
-    };
-
-    const messages = tokens
-      .filter((token) => Expo.isExpoPushToken(token))
-      .map((token) => ({
-        to: token,
-        title: firebasePayload.notification.title,
-        body: firebasePayload.notification.body,
-        data: firebasePayload.data,
-      }));
-
-    if (!messages.length) {
-      throw new InternalServerErrorException(
-        'Nenhum token válido para notificações Expo',
-      );
-    }
-
-    try {
-      const result = await expo.sendPushNotificationsAsync(messages);
-      const hasError = result.some((r) => r.status !== 'ok');
-
-      if (hasError) {
-        console.error('Erro ao enviar notificação:', result);
-        throw new InternalServerErrorException('Erro ao enviar notificação');
+      if (data) {
+        const { screen, params, url } = data;
+        firebasePayload.data = {
+          ...(url && { url }),
+          ...(screen && { screen }),
+          ...(params && { params }),
+        };
       }
 
-      return 200;
-    } catch (error) {
-      console.error('Erro na requisição de notificação:', error);
-      throw new InternalServerErrorException('Falha ao enviar notificação');
+      const messages = tokens
+        .filter((token) => Expo.isExpoPushToken(token))
+        .map((token) => ({
+          to: token,
+          title: firebasePayload.notification.title,
+          body: firebasePayload.notification.body,
+          data: firebasePayload.data,
+        }));
+
+      if (!messages.length) {
+        throw new InternalServerErrorException(
+          'Nenhum token válido para notificações Expo',
+        );
+      }
+
+      try {
+        const result = await expo.sendPushNotificationsAsync(messages);
+        const hasError = result.some((r) => r.status !== 'ok');
+
+        if (hasError) {
+          console.error('Erro ao enviar notificação:', result);
+          throw new InternalServerErrorException('Erro ao enviar notificação');
+        }
+
+        return 200;
+      } catch (error) {
+        console.error('Erro na requisição de notificação:', error);
+        throw new InternalServerErrorException('Falha ao enviar notificação');
+      }
     }
   }
 }

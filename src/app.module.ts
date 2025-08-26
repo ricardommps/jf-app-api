@@ -31,7 +31,9 @@ import { WorkoutsModule } from './workouts/workouts.module';
       entities: [`${__dirname}/**/*.entity{.js,.ts}`],
       migrations: [`${__dirname}/migration/{.ts,*.js}`],
       migrationsRun: false,
-      ssl: true,
+      logging: true, // Isso vai mostrar as queries SQL no console
+      logger: 'advanced-console',
+      ssl: false,
       // ssl: {
       //   rejectUnauthorized: false,
       // },

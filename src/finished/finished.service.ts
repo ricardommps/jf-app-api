@@ -374,4 +374,121 @@ export class FinishedService {
 
     return this.getFinishedById(id);
   }
+
+  async getUnreviewedFinished() {
+    const query = `
+      SELECT 
+        finished.*,
+        training.name as "trainingName",
+        training.subtitle as "trainingSubtitle",
+        training.description as "trainingDesc",
+        training.date_published as "trainingDatePublished",
+        training.id as "trainingId",
+        training.source as "trainingSource",
+        training.running as "trainingRunning",
+        pro.name as "programName",
+        pro.type as "type",
+        pro.goal as "goal",
+        pro.pv as "pv",
+        pro.pace as "programpace",
+        pro.difficulty_level as "difficulty",
+        pro.reference_month as "month",
+        pro.id as "programId",
+        customer.id as "customerId",
+        customer.name as "customerName",
+        customer.email as "customerEmail",
+        customer.phone as "customerPhone",
+        customer.avatar as "customerAvatar"
+      FROM finished
+      INNER JOIN (
+        SELECT 
+          id::text as id, 
+          name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id, 
+          running,
+          'old' as source
+        FROM workout
+        UNION ALL
+        SELECT 
+          id::text as id, 
+          title as name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id, 
+          running,
+          'new' as source
+        FROM workouts
+      ) training ON (
+        (finished.workout_id::text = training.id AND training.source = 'old') OR
+        (finished.workouts_id::text = training.id AND training.source = 'new')
+      )
+      LEFT JOIN program pro ON training.program_id = pro.id
+      LEFT JOIN customer ON pro.customer_id = customer.id
+      WHERE finished.review IS NULL OR finished.review = false
+      ORDER BY finished.execution_day DESC
+    `;
+
+    const results = await this.finishedRepository.manager.query(query);
+    // Formatar para camelCase
+    return results.map((row) => {
+      const formatted: any = {};
+      Object.keys(row).forEach((key) => {
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) =>
+          letter.toUpperCase(),
+        );
+        formatted[camelKey] = row[key];
+      });
+
+      return {
+        id: formatted.id,
+        workoutId: formatted.workoutId || formatted.workoutsId,
+        distance: formatted.distance,
+        duration: formatted.duration,
+        pace: formatted.pace,
+        link: formatted.link,
+        rpe: formatted.rpe,
+        trimp: formatted.trimp,
+        review: formatted.review,
+        executionDay: formatted.executionDay,
+        comments: formatted.comments,
+        feedback: formatted.feedback,
+        unrealized: formatted.unrealized,
+        intensities: formatted.intensities,
+        outdoor: formatted.outdoor,
+        unitMeasurement: formatted.unitMeasurement,
+        typeWorkout: formatted.typeWorkout,
+        distanceInMeters: formatted.distanceInMeters,
+        durationInSeconds: formatted.durationInSeconds,
+        coolDownDuration: formatted.coolDownDuration,
+        coolDownIntensities: formatted.coolDownIntensities,
+        warmUpDuration: formatted.warmUpDuration,
+        warmUpIntensities: formatted.warmUpIntensities,
+        unitmeasurement: formatted.unitmeasurement,
+        paceInSeconds: formatted.paceInSeconds,
+        checkList: formatted.checkList,
+        createdAt: formatted.createdAt,
+        updatedAt: formatted.updatedAt,
+        workout: {
+          id: formatted.trainingId,
+          name: formatted.trainingName,
+          subtitle: formatted.trainingSubtitle,
+          description: formatted.trainingDesc,
+          datePublished: formatted.trainingDatePublished,
+          source: formatted.trainingSource,
+          running: formatted.trainingRunning,
+        },
+        customer: {
+          id: formatted.customerId,
+          name: formatted.customerName,
+          email: formatted.customerEmail,
+          phone: formatted.customerPhone,
+          avatar: formatted.customerAvatar,
+        },
+      };
+    });
+  }
 }
