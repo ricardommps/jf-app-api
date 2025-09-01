@@ -42,12 +42,12 @@ export class AuthService {
   private generateTokens(payload: LoginPayload) {
     const accessToken = this.jwtService.sign(
       { ...payload },
-      { expiresIn: '5m' }, // access token expira em 5 minutos
+      { expiresIn: '1d' }, // access token expira em 5 minutos
     );
 
     const refreshToken = this.jwtService.sign(
       { ...payload },
-      { expiresIn: '10m' }, // refresh token expira em 10 minutos
+      { expiresIn: '7d' }, // refresh token expira em 10 minutos
     );
 
     return { accessToken, refreshToken };

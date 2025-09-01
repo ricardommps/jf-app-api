@@ -45,7 +45,6 @@ export class NotificationService {
   }
 
   async sendNotification(notification) {
-    console.log('-sendNotification--', notification);
     await this.customersService.findCustomerById(notification.recipientId);
     const message = {
       title: notification.title,
