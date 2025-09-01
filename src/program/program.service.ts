@@ -64,7 +64,7 @@ export class ProgramService {
 
     if (expired) {
       return {
-        program,
+        ...program,
         items: null,
         message: 'Seu planejamento acabou! Está na hora de evoluirmos.',
       };
