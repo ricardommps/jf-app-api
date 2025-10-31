@@ -4,9 +4,9 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CreateDeviceInfoDto } from 'src/dtos/create-device-info.dto';
-import { DeviceInfoEntity } from 'src/entities/device.entity';
 import { Repository } from 'typeorm';
+import { CreateDeviceInfoDto } from '../dtos/create-device-info.dto';
+import { DeviceInfoEntity } from '../entities/device.entity';
 
 @Injectable()
 export class DeviceInfoService {

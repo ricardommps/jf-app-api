@@ -6,7 +6,7 @@ import {
   ParseIntPipe,
   Post,
 } from '@nestjs/common';
-import { CreateDeviceInfoDto } from 'src/dtos/create-device-info.dto';
+import { CreateDeviceInfoDto } from '../dtos/create-device-info.dto';
 import { DeviceInfoService } from './device-info.service';
 
 @Controller('device-info')
