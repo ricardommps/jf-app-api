@@ -11,7 +11,6 @@ import { LoginDto } from '../dtos/login.dto';
 import { LoginPayload } from '../dtos/loginPayload.dto';
 import { ResponseLoginDto } from '../dtos/responseLogin.dto';
 import { UserLoginDto } from '../dtos/userLogin.dto';
-import { UserEntity } from '../entities/user.entity';
 import { FirebaseService } from '../firebase/firebase.service';
 import { UserService } from '../user/user.service';
 import { validatePassword } from '../utils/password';
@@ -42,19 +41,18 @@ export class AuthService {
   private generateTokens(payload: LoginPayload) {
     const accessToken = this.jwtService.sign(
       { ...payload },
-      { expiresIn: '1d' }, // access token expira em 5 minutos
+      { expiresIn: '30d' }, // access token expira em 5 minutos
     );
 
     const refreshToken = this.jwtService.sign(
       { ...payload },
-      { expiresIn: '7d' }, // refresh token expira em 10 minutos
+      { expiresIn: '30d' }, // refresh token expira em 10 minutos
     );
-
     return { accessToken, refreshToken };
   }
 
   async login(loginDto: LoginDto) {
-    const user: UserEntity | undefined = await this.userService
+    const user = await this.userService
       .findByEmail(loginDto.email)
       .catch(() => undefined);
 
@@ -67,8 +65,11 @@ export class AuthService {
       throw new NotFoundException('Email ou senha inválidos');
     }
 
+    const payload = new LoginPayload(user);
+    const { accessToken, refreshToken } = this.generateTokens(payload); // ✅ usa 2m aqui
     return {
-      accessToken: this.jwtService.sign({ ...new LoginPayload(user) }),
+      accessToken,
+      refreshToken,
       user: new UserLoginDto(user),
     };
   }
@@ -76,7 +77,9 @@ export class AuthService {
   async loginCustomerAndRegisterPush(
     loginDto: LoginType,
   ): Promise<ResponseLoginDto> {
-    const customer = await this.customerService.findCustomerByCpf(loginDto.cpf);
+    const customer = await this.customerService.findCustomerByEmail(
+      loginDto.email,
+    );
 
     if (!customer?.password) {
       throw new UnauthorizedException('Invalid credentials');
@@ -97,9 +100,10 @@ export class AuthService {
         loginDto.pushToken,
       );
     }
-
+    const payload = new LoginPayload(customer);
+    const { accessToken } = this.generateTokens(payload);
     return {
-      accessToken: this.jwtService.sign({ ...new LoginPayload(customer) }),
+      accessToken: accessToken,
       user: new CustomerLoginDto(customer),
     };
   }

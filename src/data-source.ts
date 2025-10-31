@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+
+config({ path: '.env.development.local' });
+
+const isTs = __filename.endsWith('.ts');
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -8,7 +13,9 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  entities: [`src/**/*.entity{.ts,.js}`],
-  migrations: [`src/migrations/*{.ts,.js}`],
-  synchronize: true,
+  entities: [isTs ? 'src/**/*.entity.ts' : 'dist/**/*.entity.js'],
+  migrations: [isTs ? 'src/migration/**/*.ts' : 'dist/migration/**/*.js'],
+  synchronize: false,
+  migrationsRun: false,
+  ssl: false,
 });

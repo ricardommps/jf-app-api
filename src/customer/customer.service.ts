@@ -32,6 +32,18 @@ export class CustomerService {
     return customer;
   }
 
+  async findCustomerByEmail(email: string): Promise<CustomerEntity> {
+    const customer = await this.customerRepository.findOne({
+      where: {
+        email,
+      },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Email: ${email} Not Found`);
+    }
+    return customer;
+  }
+
   async findCustomerById(userId: number): Promise<CustomerEntity> {
     const customer = await this.customerRepository.findOne({
       where: {

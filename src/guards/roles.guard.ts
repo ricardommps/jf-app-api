@@ -8,7 +8,7 @@ import { UserType } from '../utils/user-type.enum';
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
-    private reflector: Reflector,
+    private readonly reflector: Reflector,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -21,12 +21,10 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles) {
       return true;
     }
-    const { authorization } = context.switchToHttp().getRequest().headers;
 
+    const { authorization } = context.switchToHttp().getRequest().headers;
     const loginPayload: LoginPayload | undefined = await this.jwtService
-      .verifyAsync(authorization, {
-        secret: process.env.JWT_SECRET,
-      })
+      .verifyAsync(authorization, { secret: process.env.JWT_SECRET })
       .catch(() => undefined);
 
     if (!loginPayload) {

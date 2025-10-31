@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { DeviceInfoEntity } from './device.entity';
 import { InvoiceEntity } from './invoice.entity';
 import { NotificationEntity } from './notification.entity';
 import { ProgramEntity } from './program.entity';
@@ -123,4 +124,7 @@ export class CustomerEntity {
 
   @OneToMany(() => InvoiceEntity, (invoice) => invoice.customer)
   invoices?: InvoiceEntity[];
+
+  @OneToMany(() => DeviceInfoEntity, (deviceInfo) => deviceInfo.customer)
+  deviceInfos?: DeviceInfoEntity[];
 }
