@@ -1,18 +1,10 @@
 import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ProgramEntity } from 'src/entities/program.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
-
-type Formatted = {
-  executionDay: string;
-  distanceInKm: number;
-  workoutId: number;
-  [key: string]: any;
-};
 
 export class FinishedService {
   constructor(
@@ -56,128 +48,101 @@ export class FinishedService {
     startDate: string,
     endDate: string,
   ) {
-    try {
-      // Verifica ownership em ambas as tabelas
-      const programOwnershipOld = await this.finishedRepository
-        .createQueryBuilder('finished')
-        .select(['pro.customer_id'])
-        .innerJoin('finished.workout', 'workout')
-        .leftJoin(ProgramEntity, 'pro', 'workout.program_id = pro.id')
-        .where('workout.program_id = :programId', { programId })
-        .limit(1)
-        .getRawOne();
+    // Verifica ownership do programa (uma query unificada em vez de duas)
+    const programOwnership = await this.finishedRepository.manager.query(
+      `
+      SELECT pro.customer_id
+      FROM program pro
+      WHERE pro.id = $1
+      LIMIT 1
+      `,
+      [programId],
+    );
 
-      const programOwnershipNew = await this.finishedRepository
-        .createQueryBuilder('finished')
-        .select(['pro.customer_id'])
-        .innerJoin('finished.workouts', 'workouts')
-        .leftJoin(ProgramEntity, 'pro', 'workouts.program_id = pro.id')
-        .where('workouts.program_id = :programId', { programId })
-        .limit(1)
-        .getRawOne();
-
-      const programOwnership = programOwnershipOld || programOwnershipNew;
-
-      if (!programOwnership || programOwnership.customer_id !== userId) {
-        throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
-      }
-
-      const endDateTime = `${endDate} 23:59:59`;
-
-      // Query para a tabela antiga (workout)
-      const finishedTrainingsOld = await this.finishedRepository
-        .createQueryBuilder('finished')
-        .select([
-          'finished.execution_day',
-          'finished.distance_in_meters',
-          'finished.workout_id',
-          'NULL as workouts_id',
-        ])
-        .innerJoin('finished.workout', 'workout')
-        .leftJoin(ProgramEntity, 'pro', 'workout.program_id = pro.id')
-        .where('pro.customer_id = :customerId', { customerId: userId })
-        .andWhere('workout.program_id = :programId', { programId })
-        .andWhere('finished.execution_day >= :startDate', { startDate })
-        .andWhere('finished.execution_day <= :endDateTime', { endDateTime })
-        .andWhere('finished.unrealized = :unrealized', { unrealized: false })
-        .andWhere('workout.running = :running', { running: true })
-        .getRawMany();
-
-      // Query para a tabela nova (workouts)
-      const finishedTrainingsNew = await this.finishedRepository
-        .createQueryBuilder('finished')
-        .select([
-          'finished.execution_day',
-          'finished.distance_in_meters',
-          'NULL as workout_id',
-          'finished.workouts_id',
-        ])
-        .innerJoin('finished.workouts', 'workouts')
-        .leftJoin(ProgramEntity, 'pro', 'workouts.program_id = pro.id')
-        .where('pro.customer_id = :customerId', { customerId: userId })
-        .andWhere('workouts.program_id = :programId', { programId })
-        .andWhere('finished.execution_day >= :startDate', { startDate })
-        .andWhere('finished.execution_day <= :endDateTime', { endDateTime })
-        .andWhere('finished.unrealized = :unrealized', { unrealized: false })
-        .andWhere('workouts.running = :running', { running: true })
-        .getRawMany();
-
-      // Combina os resultados das duas queries
-      const finishedTrainings = [
-        ...finishedTrainingsOld,
-        ...finishedTrainingsNew,
-      ].sort(
-        (a, b) =>
-          new Date(a.execution_day).getTime() -
-          new Date(b.execution_day).getTime(),
-      );
-
-      const formattedFinishedTrainings = finishedTrainings
-        .map((finished) => {
-          const formatted: Formatted = {} as Formatted;
-
-          Object.keys(finished).forEach((key) => {
-            const camelCaseKey = key.replace(/_([a-z])/g, (match, letter) =>
-              letter.toUpperCase(),
-            );
-
-            if (camelCaseKey === 'distanceInMeters') {
-              formatted['distanceInKm'] = finished[key]
-                ? parseFloat((finished[key] / 100).toFixed(2))
-                : 0;
-            } else {
-              formatted[camelCaseKey] = finished[key];
-            }
-          });
-
-          // Fallback: se workoutId estiver nulo, usa workoutsId
-          formatted.workoutId = formatted.workoutId || formatted.workoutsId;
-
-          // Remove workoutsId do resultado final
-          delete formatted.workoutsId;
-
-          return formatted;
-        })
-        .sort(
-          (a, b) =>
-            new Date(b.executionDay).getTime() -
-            new Date(a.executionDay).getTime(),
-        );
-
-      const totalDistanceInKm = finishedTrainings.reduce((sum, finished) => {
-        const distance = finished.distance_in_meters
-          ? finished.distance_in_meters / 100
-          : 0;
-        return sum + distance;
-      }, 0);
-
-      return {
-        data: formattedFinishedTrainings,
-        totalDistanceInKm: parseFloat(totalDistanceInKm.toFixed(2)),
-      };
-    } catch (error) {
-      throw error;
+    if (
+      !programOwnership.length ||
+      programOwnership[0].customer_id !== userId
+    ) {
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
     }
+
+    const endDateTime = `${endDate} 23:59:59`;
+
+    // Query unificada usando UNION para ambas as tabelas
+    const finishedTrainings = await this.finishedRepository.manager.query(
+      `
+      SELECT 
+        finished.execution_day,
+        finished.distance_in_meters,
+        finished.duration_in_seconds,
+        finished.workout_id,
+        NULL as workouts_id
+      FROM finished
+      INNER JOIN workout ON finished.workout_id = workout.id
+      WHERE workout.program_id = $1
+        AND finished.execution_day >= $2
+        AND finished.execution_day <= $3
+        AND finished.unrealized = false
+        AND workout.running = true
+      
+      UNION ALL
+      
+      SELECT 
+        finished.execution_day,
+        finished.distance_in_meters,
+        finished.duration_in_seconds,
+        NULL as workout_id,
+        finished.workouts_id
+      FROM finished
+      INNER JOIN workouts ON finished.workouts_id = workouts.id
+      WHERE workouts.program_id = $1
+        AND finished.execution_day >= $2
+        AND finished.execution_day <= $3
+        AND finished.unrealized = false
+        AND workouts.running = true
+      
+      ORDER BY execution_day ASC
+      `,
+      [programId, startDate, endDateTime],
+    );
+
+    // Calcula totais durante a formatação (uma única passagem)
+    let totalDistanceInKm = 0;
+    let totalDurationInSeconds = 0;
+
+    const formattedFinishedTrainings = finishedTrainings.map((finished) => {
+      // Acumula os totais
+      totalDistanceInKm += finished.distance_in_meters
+        ? finished.distance_in_meters / 100
+        : 0;
+      totalDurationInSeconds += finished.duration_in_seconds
+        ? Number(finished.duration_in_seconds)
+        : 0;
+
+      // Formata o registro
+      return {
+        executionDay: finished.execution_day,
+        distanceInKm: finished.distance_in_meters
+          ? parseFloat((finished.distance_in_meters / 100).toFixed(2))
+          : 0,
+        durationInSeconds: finished.duration_in_seconds
+          ? Number(finished.duration_in_seconds)
+          : 0,
+        workoutId: finished.workout_id || finished.workouts_id,
+      };
+    });
+
+    // Ordena por data decrescente
+    formattedFinishedTrainings.sort(
+      (a, b) =>
+        new Date(b.executionDay).getTime() - new Date(a.executionDay).getTime(),
+    );
+
+    return {
+      data: formattedFinishedTrainings,
+      totalDistanceInKm: parseFloat(totalDistanceInKm.toFixed(2)),
+      totalDurationInSeconds,
+    };
   }
 
   async history(userId: number) {
