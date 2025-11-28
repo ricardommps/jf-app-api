@@ -37,6 +37,12 @@ export class FinishedController {
     return await this.finishedService.history(userId);
   }
 
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('getTrimp')
+  async getTrimp(@UserId() userId: number) {
+    return await this.finishedService.getTrimp(userId);
+  }
+
   @Roles(UserType.Admin, UserType.Root)
   @Get('/unreviewedFinished')
   async getUnreviewedFinished() {
