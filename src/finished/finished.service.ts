@@ -457,33 +457,35 @@ export class FinishedService {
     });
   }
 
-  async getTrimp(userId: number, startDate?: string, endDate?: string) {
-    if (!startDate || !endDate) {
-      const today = new Date();
+  async getTrimp(userId: number) {
+    // === Cálculo das últimas 4 semanas ===
+    const today = new Date();
 
-      // segunda-feira (start)
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-      startDate = monday.toISOString().slice(0, 10);
+    // Encontra a segunda-feira da semana atual
+    const currentMonday = new Date(today);
+    currentMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
 
-      // domingo (end)
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      endDate = sunday.toISOString().slice(0, 10);
-    }
+    // 3 semanas antes → início do intervalo
+    const startDateObj = new Date(currentMonday);
+    startDateObj.setDate(currentMonday.getDate() - 21); // 3 semanas antes
+    const startDate = startDateObj.toISOString().slice(0, 10);
 
+    // Domingo da semana atual → fim do intervalo
+    const endDateObj = new Date(currentMonday);
+    endDateObj.setDate(currentMonday.getDate() + 6);
+    const endDate = endDateObj.toISOString().slice(0, 10);
     const endDateTime = `${endDate} 23:59:59`;
 
-    // 2 — Query baseada na lógica do "history", filtrando por customer_id (userId)
+    // === Query combinada workout + workouts ===
     const finished = await this.finishedRepository.manager.query(
       `
         SELECT 
           f.execution_day,
           f.rpe,
           f.duration_in_seconds,
-          f.trimp
+          f.trimp,
+          w.running
         FROM finished f
-        
         INNER JOIN workout w ON f.workout_id = w.id
         INNER JOIN program p1 ON w.program_id = p1.id
         WHERE p1.customer_id = $1
@@ -497,9 +499,9 @@ export class FinishedService {
           f.execution_day,
           f.rpe,
           f.duration_in_seconds,
-          f.trimp
-        FROM finished f
-        
+          f.trimp,
+          ws.running
+        FROM finished f      
         INNER JOIN workouts ws ON f.workouts_id = ws.id
         INNER JOIN program p2 ON ws.program_id = p2.id
         WHERE p2.customer_id = $1
@@ -512,12 +514,10 @@ export class FinishedService {
       [userId, startDate, endDateTime],
     );
 
-    // 3 — Formatação e cálculo de TRIMP quando necessário
     const formatted = finished.map((f) => {
       const duration = Number(f.duration_in_seconds ?? 0);
       const rpe = Number(f.rpe ?? 0);
 
-      // Recalcula TRIMP se não existir
       const trimp =
         duration > 0 && rpe > 0
           ? Number(((duration / 60) * rpe).toFixed(2))
@@ -528,10 +528,10 @@ export class FinishedService {
         rpe,
         durationInSeconds: duration,
         trimp,
+        running: Boolean(f.running),
       };
     });
 
-    // Ordena por data DESC
     formatted.sort(
       (a, b) =>
         new Date(b.executionDay).getTime() - new Date(a.executionDay).getTime(),
