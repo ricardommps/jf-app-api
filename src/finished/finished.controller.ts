@@ -44,6 +44,12 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root)
+  @Get('getTrimpAdmin/:customerId')
+  async getTrimpAdmin(@Param('customerId') customerId: number) {
+    return await this.finishedService.getTrimp(customerId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
   @Get('/unreviewedFinished')
   async getUnreviewedFinished() {
     return this.finishedService.getUnreviewedFinished();
