@@ -32,6 +32,22 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('getReview')
+  async getReview(
+    @UserId() userId: number,
+    @Query('programId') programId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return await this.finishedService.getReview(
+      Number(userId),
+      Number(programId),
+      startDate,
+      endDate,
+    );
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('history')
   async history(@UserId() userId: number) {
     return await this.finishedService.history(userId);

@@ -543,4 +543,116 @@ export class FinishedService {
       endDate,
     };
   }
+
+  async getReview(
+    userId: number,
+    programId: number,
+    startDate: string,
+    endDate: string,
+  ) {
+    // Verifica ownership do programa
+    const programOwnership = await this.finishedRepository.manager.query(
+      `
+      SELECT pro.customer_id
+      FROM program pro
+      WHERE pro.id = $1
+      LIMIT 1
+      `,
+      [programId],
+    );
+
+    if (
+      !programOwnership.length ||
+      programOwnership[0].customer_id !== userId
+    ) {
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+    }
+
+    const endDateTime = `${endDate} 23:59:59`;
+
+    // Query base (volume)
+    const finishedTrainings = await this.finishedRepository.manager.query(
+      `
+      SELECT 
+        finished.distance_in_meters,
+        finished.duration_in_seconds
+      FROM finished
+      INNER JOIN workout ON finished.workout_id = workout.id
+      WHERE workout.program_id = $1
+        AND finished.execution_day >= $2
+        AND finished.execution_day <= $3
+        AND finished.unrealized = false
+        AND workout.running = true
+  
+      UNION ALL
+  
+      SELECT 
+        finished.distance_in_meters,
+        finished.duration_in_seconds
+      FROM finished
+      INNER JOIN workouts ON finished.workouts_id = workouts.id
+      WHERE workouts.program_id = $1
+        AND finished.execution_day >= $2
+        AND finished.execution_day <= $3
+        AND finished.unrealized = false
+        AND workouts.running = true
+      `,
+      [programId, startDate, endDateTime],
+    );
+
+    let totalDistanceInKm = 0;
+    let totalDurationInSeconds = 0;
+
+    finishedTrainings.forEach((item) => {
+      totalDistanceInKm += item.distance_in_meters
+        ? item.distance_in_meters / 100
+        : 0;
+
+      totalDurationInSeconds += item.duration_in_seconds
+        ? Number(item.duration_in_seconds)
+        : 0;
+    });
+
+    const totalDays = finishedTrainings.length;
+
+    // ✅ Conta COMPETIÇÕES em workout + workouts
+    const runningRacesResult = await this.finishedRepository.manager.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT finished.id
+        FROM finished
+        INNER JOIN workout ON finished.workout_id = workout.id
+        WHERE workout.program_id = $1
+          AND workout.name = 'COMPETICAO'
+          AND workout.running = true
+          AND finished.execution_day >= $2
+          AND finished.execution_day <= $3
+          AND finished.unrealized = false
+  
+        UNION ALL
+  
+        SELECT finished.id
+        FROM finished
+        INNER JOIN workouts ON finished.workouts_id = workouts.id
+        WHERE workouts.program_id = $1
+          AND workouts.title = 'COMPETICAO'
+          AND workouts.running = true
+          AND finished.execution_day >= $2
+          AND finished.execution_day <= $3
+          AND finished.unrealized = false
+      ) races
+      `,
+      [programId, startDate, endDateTime],
+    );
+
+    const totalRunningRaces = Number(runningRacesResult[0]?.total || 0);
+
+    return {
+      totalDistanceInKm: parseFloat(totalDistanceInKm.toFixed(2)),
+      totalDurationInSeconds,
+      totalDays,
+      totalRunningRaces,
+    };
+  }
 }
