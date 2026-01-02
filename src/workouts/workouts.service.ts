@@ -644,21 +644,19 @@ export class WorkoutsService {
         .where('workout.programId = :programId', { programId })
         .andWhere('workout.running = :running', { running });
 
-      // Aplica filtro de published se fornecido
       if (published !== undefined) {
         query.andWhere('workout.published = :published', { published });
       }
 
-      // 👉 Se running = true, filtra somente o ano atual
       if (running) {
-        const endDate = new Date(); // agora
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 12);
+        const today = new Date();
 
-        query.andWhere(
-          'workout.datePublished >= :startDate AND workout.datePublished <= :endDate',
-          { startDate, endDate },
-        );
+        const twelveMonthsAgo = new Date(today);
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+        query.andWhere('workout.datePublished >= :twelveMonthsAgo', {
+          twelveMonthsAgo,
+        });
 
         query.orderBy('workout.datePublished', 'DESC');
       } else {
@@ -686,10 +684,6 @@ export class WorkoutsService {
         },
         order: { datePublished: 'DESC' },
       });
-
-      if (!workouts || workouts.length === 0) {
-        throw new Error('Workout não encontrado');
-      }
 
       return workouts;
     } catch (error) {
