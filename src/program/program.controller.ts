@@ -25,6 +25,15 @@ export class ProgramController {
     return programs.map((program) => new HomeProgramDto(program));
   }
 
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('runnerProgram')
+  async getRunnerProgram(
+    @UserId() customerId: number,
+  ): Promise<HomeProgramDto[]> {
+    const programs = await this.programService.getRunnerProgram(customerId);
+    return programs.map((program) => new HomeProgramDto(program));
+  }
+
   @Roles(UserType.Admin, UserType.Root)
   @Get('/viewPdf/:programId')
   async findProgramByIdUViewPdf(@Param('programId') programId) {

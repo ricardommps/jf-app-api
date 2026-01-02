@@ -11,6 +11,7 @@ import {
 import { FinishedEntity } from './finished.entity';
 import { ProgramEntity } from './program.entity';
 import { WorkoutItemEntity } from './workoutItens.entity';
+
 @Entity('workouts')
 export class WorkoutsEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -27,6 +28,12 @@ export class WorkoutsEntity {
 
   @Column()
   title: string;
+
+  @Column({ type: 'numeric', precision: 8, scale: 3, nullable: true })
+  distance: number;
+
+  @Column()
+  link: string;
 
   @Column()
   subtitle: string;

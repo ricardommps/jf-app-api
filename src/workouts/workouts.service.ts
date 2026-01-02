@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProgramEntity } from 'src/entities/program.entity';
-import { In, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
 import { WorkoutItemMediaEntity } from '../entities/workoutItemMedia.entity';
@@ -53,6 +53,49 @@ export class WorkoutsService {
 
   async createWorkout(workout): Promise<WorkoutWithGroupedMedias> {
     const { workoutItems = [], ...rest } = workout;
+
+    if (workout.title !== 'COMPETICAO') {
+      throw new Error('Erro ao salva prova.');
+    }
+
+    // Salva o treino
+    const savedWorkout = await this.workoutRepository.save(rest);
+
+    for (const item of workoutItems) {
+      const processedMediaOrder = this.processMediaStructure(
+        item.medias || [],
+        item.mediaOrder || [],
+      );
+
+      const workoutItem = await this.workoutItemRepository.save({
+        workout: savedWorkout,
+        _id: item._id,
+        category: item.category,
+        description: item.description || '',
+        mediaOrder: processedMediaOrder,
+        isWorkoutLoad: item.isWorkoutLoad || '',
+      });
+
+      if (!workoutItem?.id) {
+        throw new Error('Falha ao salvar workoutItem ou ID não gerado.');
+      }
+      if (Array.isArray(item.medias) && item.medias.length > 0) {
+        await this.processWorkoutItemMedias(workoutItem, item.medias || []);
+      }
+
+      if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
+        await this.processMediaInfo(workoutItem, item.mediaInfo);
+      }
+    }
+    return await this.getWorkoutWithRelations(savedWorkout.id, workoutItems);
+  }
+
+  async createRunningRaces(workout): Promise<WorkoutWithGroupedMedias> {
+    const { workoutItems = [], ...rest } = workout;
+
+    if (workout.title !== 'COMPETICAO') {
+      throw new Error('Erro ao salva prova.');
+    }
 
     // Salva o treino
     const savedWorkout = await this.workoutRepository.save(rest);
@@ -566,8 +609,16 @@ export class WorkoutsService {
         query.andWhere('workout.published = :published', { published });
       }
 
-      // Aplica a ordenação condicional
+      // 👉 Se running = true, filtra somente o ano atual
       if (running) {
+        const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+        const endOfYear = new Date(new Date().getFullYear() + 1, 0, 1);
+
+        query.andWhere(
+          'workout.datePublished >= :startOfYear AND workout.datePublished < :endOfYear',
+          { startOfYear, endOfYear },
+        );
+
         query.orderBy('workout.datePublished', 'DESC');
       } else {
         query.orderBy('workout.displayOrder', 'ASC');
@@ -576,6 +627,73 @@ export class WorkoutsService {
       return await query.getMany();
     } catch (error) {
       throw new Error(`Failed to get workouts: ${error.message}`);
+    }
+  }
+
+  async getWorkoutsByProgramIdSimpleAdmin(
+    programId: number,
+    running: boolean,
+    published?: boolean,
+  ): Promise<WorkoutsEntity[]> {
+    try {
+      const query = this.workoutRepository
+        .createQueryBuilder('workout')
+        .leftJoinAndSelect('workout.workoutItems', 'workoutItems')
+        .leftJoinAndSelect('workoutItems.medias', 'medias')
+        .leftJoinAndSelect('workout.history', 'finished')
+        .where('workout.programId = :programId', { programId })
+        .andWhere('workout.running = :running', { running });
+
+      // Aplica filtro de published se fornecido
+      if (published !== undefined) {
+        query.andWhere('workout.published = :published', { published });
+      }
+
+      // 👉 Se running = true, filtra somente o ano atual
+      if (running) {
+        const endDate = new Date(); // agora
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 12);
+
+        query.andWhere(
+          'workout.datePublished >= :startDate AND workout.datePublished <= :endDate',
+          { startDate, endDate },
+        );
+
+        query.orderBy('workout.datePublished', 'DESC');
+      } else {
+        query.orderBy('workout.displayOrder', 'ASC');
+      }
+
+      return await query.getMany();
+    } catch (error) {
+      throw new Error(`Failed to get workouts: ${error.message}`);
+    }
+  }
+
+  async getWorkoutRunningRaces(programId: number): Promise<WorkoutsEntity[]> {
+    try {
+      const currentYear = new Date().getFullYear();
+
+      const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0);
+      const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+
+      const workouts = await this.workoutRepository.find({
+        where: {
+          programId,
+          title: 'COMPETICAO',
+          datePublished: Between(startOfYear, endOfYear),
+        },
+        order: { datePublished: 'DESC' },
+      });
+
+      if (!workouts || workouts.length === 0) {
+        throw new Error('Workout não encontrado');
+      }
+
+      return workouts;
+    } catch (error) {
+      throw error;
     }
   }
 

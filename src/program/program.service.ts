@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { WorkoutsEntity } from 'src/entities/workouts.entity';
 import { Repository } from 'typeorm';
@@ -45,6 +49,37 @@ export class ProgramService {
     return program;
   }
 
+  async getRunnerProgram(customerId: number): Promise<ProgramEntity[]> {
+    const programs = await this.programRepository.find({
+      where: {
+        customerId,
+        hide: false,
+        vs2: true,
+        type: 1,
+      },
+      order: { updatedAt: 'DESC' },
+    });
+
+    if (!programs.length) {
+      throw new BadRequestException(
+        'Nenhum programa encontrado para este atleta.',
+      );
+    }
+
+    const now = new Date();
+
+    const expiredProgram = programs.find(
+      (program) => program.endDate && new Date(program.endDate) < now,
+    );
+
+    if (expiredProgram) {
+      throw new BadRequestException(
+        'O programa de treino está vencido. Entre em contato com seu treinador.',
+      );
+    }
+
+    return programs;
+  }
   async findProgramById(programId: number) {
     const program = await this.programRepository.findOne({
       where: {
