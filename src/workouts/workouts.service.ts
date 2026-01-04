@@ -253,128 +253,158 @@ export class WorkoutsService {
     workoutId: string,
     workout,
   ): Promise<WorkoutWithGroupedMedias> {
-    const { workoutItems = [], ...rest } = workout;
+    try {
+      const { workoutItems = [], ...rest } = workout;
 
-    // Busca o workout existente
-    const existingWorkout = await this.workoutRepository.findOne({
-      where: { id: workoutId },
-      relations: [
-        'workoutItems',
-        'workoutItems.medias',
-        'workoutItems.mediaInfo',
-      ],
-    });
-
-    if (!existingWorkout) {
-      throw new Error('Workout não encontrado.');
-    }
-
-    // Atualiza os dados principais do workout
-    await this.workoutRepository.update(workoutId, rest);
-
-    // Busca workoutItems existentes
-    const existingWorkoutItems = existingWorkout.workoutItems || [];
-
-    // Mapeia os IDs dos workoutItems que devem permanecer
-    const incomingItemIds = workoutItems
-      .filter((item) => item._id)
-      .map((item) => item._id);
-
-    // Remove workoutItems que não estão mais na lista
-    const itemsToRemove = existingWorkoutItems.filter(
-      (item) => !incomingItemIds.includes(item._id),
-    );
-
-    for (const itemToRemove of itemsToRemove) {
-      // Remove relacionamentos com medias
-      await this.workoutItemMediaRepository.delete({
-        workoutItemId: itemToRemove.id,
+      // Busca o workout existente
+      const existingWorkout = await this.workoutRepository.findOne({
+        where: { id: workoutId },
+        relations: [
+          'workoutItems',
+          'workoutItems.medias',
+          'workoutItems.mediaInfo',
+        ],
       });
 
-      // Remove mediaInfo relacionadas
-      await this.mediaInfoRepository.delete({
-        workoutItem: { id: itemToRemove.id },
-      });
+      if (!existingWorkout) {
+        throw new Error('Workout não encontrado.');
+      }
 
-      // Remove o workoutItem
-      await this.workoutItemRepository.delete(itemToRemove.id);
-    }
+      // Sanitiza os dados antes de atualizar (converte strings vazias em null para campos numéricos)
+      const sanitizedData = this.sanitizeWorkoutData(rest);
 
-    // Processa cada workoutItem da requisição
-    for (const item of workoutItems) {
-      const processedMediaOrder = this.processMediaStructure(
-        item.medias || [],
-        item.mediaOrder || [],
+      // Atualiza os dados principais do workout
+      await this.workoutRepository.update(workoutId, sanitizedData);
+
+      // ... resto do código permanece igual
+
+      // Busca workoutItems existentes
+      const existingWorkoutItems = existingWorkout.workoutItems || [];
+
+      // Mapeia os IDs dos workoutItems que devem permanecer
+      const incomingItemIds = workoutItems
+        .filter((item) => item._id)
+        .map((item) => item._id);
+
+      // Remove workoutItems que não estão mais na lista
+      const itemsToRemove = existingWorkoutItems.filter(
+        (item) => !incomingItemIds.includes(item._id),
       );
 
-      let workoutItem;
+      for (const itemToRemove of itemsToRemove) {
+        // Remove relacionamentos com medias
+        await this.workoutItemMediaRepository.delete({
+          workoutItemId: itemToRemove.id,
+        });
 
-      if (item._id) {
-        // Atualiza workoutItem existente
-        const existingItem = existingWorkoutItems.find(
-          (ei) => ei._id === item._id,
+        // Remove mediaInfo relacionadas
+        await this.mediaInfoRepository.delete({
+          workoutItem: { id: itemToRemove.id },
+        });
+
+        // Remove o workoutItem
+        await this.workoutItemRepository.delete(itemToRemove.id);
+      }
+
+      // Processa cada workoutItem da requisição
+      for (const item of workoutItems) {
+        const processedMediaOrder = this.processMediaStructure(
+          item.medias || [],
+          item.mediaOrder || [],
         );
 
-        if (existingItem) {
-          await this.workoutItemRepository.update(existingItem.id, {
-            category: item.category,
-            description: item.description || '',
-            mediaOrder: processedMediaOrder,
-            isWorkoutLoad: item.isWorkoutLoad,
-          });
+        let workoutItem;
 
-          workoutItem = await this.workoutItemRepository.findOne({
-            where: { id: existingItem.id },
-          });
+        if (item._id) {
+          // Atualiza workoutItem existente
+          const existingItem = existingWorkoutItems.find(
+            (ei) => ei._id === item._id,
+          );
 
-          // Remove relacionamentos antigos de media
-          await this.workoutItemMediaRepository.delete({
-            workoutItemId: workoutItem.id,
-          });
+          if (existingItem) {
+            await this.workoutItemRepository.update(existingItem.id, {
+              category: item.category,
+              description: item.description || '',
+              mediaOrder: processedMediaOrder,
+              isWorkoutLoad: item.isWorkoutLoad,
+            });
 
-          // Remove mediaInfo antigas
-          await this.mediaInfoRepository.delete({
-            workoutItem: { id: workoutItem.id },
-          });
+            workoutItem = await this.workoutItemRepository.findOne({
+              where: { id: existingItem.id },
+            });
+
+            // Remove relacionamentos antigos de media
+            await this.workoutItemMediaRepository.delete({
+              workoutItemId: workoutItem.id,
+            });
+
+            // Remove mediaInfo antigas
+            await this.mediaInfoRepository.delete({
+              workoutItem: { id: workoutItem.id },
+            });
+          } else {
+            // Cria novo workoutItem (caso o _id não seja encontrado)
+            workoutItem = await this.workoutItemRepository.save({
+              workout: existingWorkout,
+              _id: item._id,
+              category: item.category,
+              description: item.description || '',
+              mediaOrder: processedMediaOrder,
+              isWorkoutLoad: item.isWorkoutLoad, // CORRIGIDO: estava usando description
+            });
+          }
         } else {
-          // Cria novo workoutItem (caso o _id não seja encontrado)
+          // Cria novo workoutItem (sem _id)
           workoutItem = await this.workoutItemRepository.save({
             workout: existingWorkout,
             _id: item._id,
             category: item.category,
             description: item.description || '',
             mediaOrder: processedMediaOrder,
-            isWorkoutLoad: item.description || '',
+            isWorkoutLoad: item.isWorkoutLoad, // CORRIGIDO: estava usando description
           });
         }
-      } else {
-        // Cria novo workoutItem (sem _id)
-        workoutItem = await this.workoutItemRepository.save({
-          workout: existingWorkout,
-          _id: item._id,
-          category: item.category,
-          description: item.description || '',
-          mediaOrder: processedMediaOrder,
-          isWorkoutLoad: item.description || '',
-        });
+
+        if (!workoutItem?.id) {
+          throw new Error(
+            'Falha ao salvar/atualizar workoutItem ou ID não gerado.',
+          );
+        }
+
+        // Processa as medias do workoutItem
+        await this.processWorkoutItemMedias(workoutItem, item.medias || []);
+
+        // Processa mediaInfo se existir
+        if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
+          await this.processMediaInfo(workoutItem, item.mediaInfo);
+        }
       }
 
-      if (!workoutItem?.id) {
-        throw new Error(
-          'Falha ao salvar/atualizar workoutItem ou ID não gerado.',
-        );
-      }
-
-      // Processa as medias do workoutItem
-      await this.processWorkoutItemMedias(workoutItem, item.medias || []);
-
-      // Processa mediaInfo se existir
-      if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
-        await this.processMediaInfo(workoutItem, item.mediaInfo);
-      }
+      return await this.getWorkoutWithRelations(workoutId, workoutItems);
+    } catch (err) {
+      console.log(err);
+      throw err; // É importante re-lançar o erro
     }
+  }
 
-    return await this.getWorkoutWithRelations(workoutId, workoutItems);
+  // Adicione este método auxiliar na classe
+  private sanitizeWorkoutData(data: any): any {
+    const sanitized = { ...data };
+
+    // Lista de campos numéricos que podem vir como string vazia
+    const numericFields = ['distance', 'displayOrder', 'programId'];
+
+    numericFields.forEach((field) => {
+      if (
+        sanitized[field] === '' ||
+        sanitized[field] === null ||
+        sanitized[field] === undefined
+      ) {
+        sanitized[field] = null;
+      }
+    });
+
+    return sanitized;
   }
 
   private processMediaStructure(medias: any[], mediaOrder: any[] = []): any[] {
