@@ -52,42 +52,42 @@ export class WorkoutsService {
   ) {}
 
   async createWorkout(workout): Promise<WorkoutWithGroupedMedias> {
-    const { workoutItems = [], ...rest } = workout;
+    try {
+      const { workoutItems = [], ...rest } = workout;
 
-    if (workout.title !== 'COMPETICAO') {
-      throw new Error('Erro ao salva prova.');
+      // Salva o treino
+      const savedWorkout = await this.workoutRepository.save(rest);
+
+      for (const item of workoutItems) {
+        const processedMediaOrder = this.processMediaStructure(
+          item.medias || [],
+          item.mediaOrder || [],
+        );
+
+        const workoutItem = await this.workoutItemRepository.save({
+          workout: savedWorkout,
+          _id: item._id,
+          category: item.category,
+          description: item.description || '',
+          mediaOrder: processedMediaOrder,
+          isWorkoutLoad: item.isWorkoutLoad || '',
+        });
+
+        if (!workoutItem?.id) {
+          throw new Error('Falha ao salvar workoutItem ou ID não gerado.');
+        }
+        if (Array.isArray(item.medias) && item.medias.length > 0) {
+          await this.processWorkoutItemMedias(workoutItem, item.medias || []);
+        }
+
+        if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
+          await this.processMediaInfo(workoutItem, item.mediaInfo);
+        }
+      }
+      return await this.getWorkoutWithRelations(savedWorkout.id, workoutItems);
+    } catch (err) {
+      console.log(err);
     }
-
-    // Salva o treino
-    const savedWorkout = await this.workoutRepository.save(rest);
-
-    for (const item of workoutItems) {
-      const processedMediaOrder = this.processMediaStructure(
-        item.medias || [],
-        item.mediaOrder || [],
-      );
-
-      const workoutItem = await this.workoutItemRepository.save({
-        workout: savedWorkout,
-        _id: item._id,
-        category: item.category,
-        description: item.description || '',
-        mediaOrder: processedMediaOrder,
-        isWorkoutLoad: item.isWorkoutLoad || '',
-      });
-
-      if (!workoutItem?.id) {
-        throw new Error('Falha ao salvar workoutItem ou ID não gerado.');
-      }
-      if (Array.isArray(item.medias) && item.medias.length > 0) {
-        await this.processWorkoutItemMedias(workoutItem, item.medias || []);
-      }
-
-      if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
-        await this.processMediaInfo(workoutItem, item.mediaInfo);
-      }
-    }
-    return await this.getWorkoutWithRelations(savedWorkout.id, workoutItems);
   }
 
   async createRunningRaces(workout): Promise<WorkoutWithGroupedMedias> {
@@ -178,6 +178,7 @@ export class WorkoutsService {
       const results = await Promise.all(promises);
       return results;
     } catch (error) {
+      console.log(error);
       throw new Error(`Error cloning workout: ${error.message}`);
     }
   }
@@ -654,9 +655,10 @@ export class WorkoutsService {
         const twelveMonthsAgo = new Date(today);
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-        query.andWhere('workout.datePublished >= :twelveMonthsAgo', {
-          twelveMonthsAgo,
-        });
+        query.andWhere(
+          '(workout.datePublished >= :twelveMonthsAgo OR workout.datePublished IS NULL)',
+          { twelveMonthsAgo },
+        );
 
         query.orderBy('workout.datePublished', 'DESC');
       } else {
