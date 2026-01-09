@@ -55,8 +55,18 @@ export class WorkoutsService {
     try {
       const { workoutItems = [], ...rest } = workout;
 
-      // Salva o treino
-      const savedWorkout = await this.workoutRepository.save(rest);
+      const normalizeNumeric = (value: any) =>
+        value === '' || value === undefined ? null : value;
+
+      const normalizedWorkout = {
+        ...rest,
+        distance: normalizeNumeric(rest.distance),
+        heating: normalizeNumeric(rest.heating),
+        recovery: normalizeNumeric(rest.recovery),
+      };
+
+      // Salva o treino já normalizado
+      const savedWorkout = await this.workoutRepository.save(normalizedWorkout);
 
       for (const item of workoutItems) {
         const processedMediaOrder = this.processMediaStructure(
@@ -76,17 +86,20 @@ export class WorkoutsService {
         if (!workoutItem?.id) {
           throw new Error('Falha ao salvar workoutItem ou ID não gerado.');
         }
+
         if (Array.isArray(item.medias) && item.medias.length > 0) {
-          await this.processWorkoutItemMedias(workoutItem, item.medias || []);
+          await this.processWorkoutItemMedias(workoutItem, item.medias);
         }
 
         if (Array.isArray(item.mediaInfo) && item.mediaInfo.length > 0) {
           await this.processMediaInfo(workoutItem, item.mediaInfo);
         }
       }
+
       return await this.getWorkoutWithRelations(savedWorkout.id, workoutItems);
     } catch (err) {
-      console.log(err);
+      console.error(err);
+      throw err;
     }
   }
 
