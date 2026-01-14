@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -25,6 +26,17 @@ export class CustomerController {
     return this.customerService.findCustomerByCpf(cpf);
   }
 
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('birthdays/month')
+  async getBirthdaysOfMonth(
+    @Query('month') month?: number,
+    @Query('year') year?: number,
+  ) {
+    return this.customerService.getBirthdaysOfMonth(
+      month ? Number(month) : undefined,
+      year ? Number(year) : undefined,
+    );
+  }
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Patch('/avatar')
   @UseInterceptors(FileInterceptor('file'))

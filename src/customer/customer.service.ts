@@ -110,4 +110,91 @@ export class CustomerService {
     });
     return updatedCustomer;
   }
+
+  async getBirthdaysOfMonth(month?: number, year?: number) {
+    const now = new Date();
+    const currentMonth = month ?? now.getMonth() + 1;
+    const currentYear = year ?? now.getFullYear();
+
+    const today = new Date(currentYear, currentMonth - 1, now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const monthLabel = new Date(currentYear, currentMonth - 1)
+      .toLocaleString('pt-BR', { month: 'long' })
+      .toUpperCase();
+
+    const customers = await this.customerRepository
+      .createQueryBuilder('customer')
+      .where('customer.active = true')
+      .andWhere('EXTRACT(MONTH FROM customer.birth_date) = :month', {
+        month: currentMonth,
+      })
+      .select([
+        'customer.id',
+        'customer.name',
+        'customer.birthDate',
+        'customer.avatar',
+      ])
+      .getMany();
+
+    const sameDay = (a: Date, b: Date) =>
+      a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+
+    const formatDate = (day: number) =>
+      `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    const todayList = [];
+    const tomorrowList = [];
+    const monthList = [];
+
+    for (const customer of customers) {
+      const birthDate = new Date(customer.birthDate);
+      const birthdayThisYear = new Date(
+        currentYear,
+        currentMonth - 1,
+        birthDate.getDate(),
+      );
+
+      // ⛔ Ignora aniversários que já passaram
+      if (birthdayThisYear < today) continue;
+
+      if (sameDay(birthdayThisYear, today)) {
+        todayList.push({
+          id: String(customer.id),
+          name: customer.name,
+          avatarUrl: customer.avatar,
+          date: formatDate(birthDate.getDate()),
+        });
+        continue;
+      }
+
+      if (sameDay(birthdayThisYear, tomorrow)) {
+        tomorrowList.push({
+          id: String(customer.id),
+          name: customer.name,
+          avatarUrl: customer.avatar,
+          date: formatDate(birthDate.getDate()),
+        });
+        continue;
+      }
+
+      monthList.push({
+        id: String(customer.id),
+        name: customer.name,
+        day: birthDate.getDate(),
+        date: formatDate(birthDate.getDate()),
+      });
+    }
+
+    monthList.sort((a, b) => a.day - b.day);
+
+    return {
+      month: currentMonth,
+      monthLabel,
+      today: todayList,
+      tomorrow: tomorrowList,
+      monthBirthdays: monthList,
+    };
+  }
 }
