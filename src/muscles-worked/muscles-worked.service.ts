@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MusclesWorkedEntity } from 'src/entities/muscles-worked.entity';
-import { SaveMusclesWorked } from 'src/types/muscles-worked.type';
 import { Repository } from 'typeorm';
+import { MusclesWorkedEntity } from '../entities/muscles-worked.entity';
+import { SaveMusclesWorked } from '../types/muscles-worked.type';
 
 @Injectable()
 export class MusclesWorkedService {
