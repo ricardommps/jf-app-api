@@ -14,6 +14,7 @@ import { FirebaseModule } from './firebase/firebase.module';
 import { RolesGuard } from './guards/roles.guard';
 import { InvoiceModule } from './invoice/invoice.module';
 import { MediaModule } from './media/media.module';
+import { MusclesWorkedModule } from './muscles-worked/muscles-worked.module';
 import { NotificationModule } from './notification/notification.module';
 import { ProgramModule } from './program/program.module';
 import { UserModule } from './user/user.module';
@@ -40,6 +41,7 @@ import { WorkoutsModule } from './workouts/workouts.module';
     FirebaseModule,
     CloudinaryModule,
     DeviceInfoModule,
+    MusclesWorkedModule,
   ],
   controllers: [],
   providers: [

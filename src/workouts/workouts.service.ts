@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProgramEntity } from 'src/entities/program.entity';
+import { MusclesWorkedService } from 'src/muscles-worked/muscles-worked.service';
 import { Between, In, Repository } from 'typeorm';
 import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
@@ -34,6 +35,8 @@ export class WorkoutsService {
   constructor(
     @InjectRepository(WorkoutsEntity)
     private workoutRepository: Repository<WorkoutsEntity>,
+
+    private readonly musclesWorkedService: MusclesWorkedService,
 
     @InjectRepository(WorkoutItemEntity)
     private readonly workoutItemRepository: Repository<WorkoutItemEntity>,
@@ -634,46 +637,140 @@ export class WorkoutsService {
     }
   }
 
+  // async getWorkoutsByProgramIdSimple(
+  //   programId: number,
+  //   running: boolean,
+  //   published?: boolean,
+  // ): Promise<WorkoutsEntity[]> {
+  //   try {
+  //     const query = this.workoutRepository
+  //       .createQueryBuilder('workout')
+  //       .leftJoinAndSelect('workout.workoutItems', 'workoutItems')
+  //       .leftJoinAndSelect('workoutItems.medias', 'medias')
+  //       .leftJoinAndSelect('workout.history', 'finished')
+  //       .where('workout.programId = :programId', { programId })
+  //       .andWhere('workout.running = :running', { running });
+
+  //     // Aplica filtro de published se fornecido
+  //     if (published !== undefined) {
+  //       query.andWhere('workout.published = :published', { published });
+  //     }
+
+  //     // 👉 Se running = true, filtra somente o ano atual
+  //     if (running) {
+  //       const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+  //       const endOfYear = new Date(new Date().getFullYear() + 1, 0, 1);
+
+  //       query.andWhere(
+  //         'workout.datePublished >= :startOfYear AND workout.datePublished < :endOfYear',
+  //         { startOfYear, endOfYear },
+  //       );
+
+  //       query.orderBy('workout.datePublished', 'DESC');
+  //     } else {
+  //       query.orderBy('workout.displayOrder', 'ASC');
+  //     }
+
+  //     return await query.getMany();
+  //   } catch (error) {
+  //     throw new Error(`Failed to get workouts: ${error.message}`);
+  //   }
+  // }
+
   async getWorkoutsByProgramIdSimple(
     programId: number,
     running: boolean,
     published?: boolean,
   ): Promise<WorkoutsEntity[]> {
-    try {
-      const query = this.workoutRepository
-        .createQueryBuilder('workout')
-        .leftJoinAndSelect('workout.workoutItems', 'workoutItems')
-        .leftJoinAndSelect('workoutItems.medias', 'medias')
-        .leftJoinAndSelect('workout.history', 'finished')
-        .where('workout.programId = :programId', { programId })
-        .andWhere('workout.running = :running', { running });
+    const query = this.workoutRepository
+      .createQueryBuilder('workout')
+      .leftJoinAndSelect('workout.workoutItems', 'workoutItems')
+      .leftJoinAndSelect('workoutItems.medias', 'medias')
+      .leftJoinAndSelect('workout.history', 'finished')
+      .where('workout.programId = :programId', { programId })
+      .andWhere('workout.running = :running', { running });
 
-      // Aplica filtro de published se fornecido
-      if (published !== undefined) {
-        query.andWhere('workout.published = :published', { published });
-      }
-
-      // 👉 Se running = true, filtra somente o ano atual
-      if (running) {
-        const startOfYear = new Date(new Date().getFullYear(), 0, 1);
-        const endOfYear = new Date(new Date().getFullYear() + 1, 0, 1);
-
-        query.andWhere(
-          'workout.datePublished >= :startOfYear AND workout.datePublished < :endOfYear',
-          { startOfYear, endOfYear },
-        );
-
-        query.orderBy('workout.datePublished', 'DESC');
-      } else {
-        query.orderBy('workout.displayOrder', 'ASC');
-      }
-
-      return await query.getMany();
-    } catch (error) {
-      throw new Error(`Failed to get workouts: ${error.message}`);
+    if (published !== undefined) {
+      query.andWhere('workout.published = :published', { published });
     }
-  }
 
+    if (running) {
+      const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+      const endOfYear = new Date(new Date().getFullYear() + 1, 0, 1);
+
+      query.andWhere(
+        'workout.datePublished >= :startOfYear AND workout.datePublished < :endOfYear',
+        { startOfYear, endOfYear },
+      );
+
+      query.orderBy('workout.datePublished', 'DESC');
+    } else {
+      query.orderBy('workout.displayOrder', 'ASC');
+    }
+
+    const workouts = await query.getMany();
+
+    // 🔴 running = true → não injeta musclesWorked
+    if (running) {
+      return workouts;
+    }
+
+    /**
+     * ============================
+     * NÃO RUNNING
+     * ============================
+     */
+
+    // 1️⃣ Normaliza workoutItems (mediaOrder → MediaEntity[][])
+    workouts.forEach((workout) => {
+      workout.workoutItems = transformWorkoutItems(workout.workoutItems);
+    });
+
+    // 2️⃣ Extrai mediaIds (number, compatível com MusclesWorkedService)
+    const mediaIds = workouts
+      .flatMap((workout) => workout.workoutItems)
+      .flatMap((item) => item.medias)
+      .flatMap((group) => group)
+      .map((media) => Number(media.id))
+      .filter((id) => !isNaN(id));
+
+    const uniqueMediaIds: number[] = [...new Set(mediaIds)];
+
+    if (!uniqueMediaIds.length) {
+      return workouts;
+    }
+    // 3️⃣ Busca musclesWorked
+    const musclesWorkedList =
+      await this.musclesWorkedService.findByMediaIds(uniqueMediaIds);
+    const musclesWorkedMap = new Map(
+      musclesWorkedList.map((mw) => [mw.mediaId, mw]),
+    );
+    // 4️⃣ Injeta musclesWorked nas medias
+    workouts.forEach((workout) => {
+      workout.workoutItems.forEach((item) => {
+        item.medias = item.medias.map((group: any) => {
+          const newGroup: any = {};
+
+          Object.keys(group).forEach((key) => {
+            // ignora chaves não numéricas
+            if (isNaN(Number(key))) return;
+
+            const media = group[key];
+            const mediaId = Number(media.id);
+
+            newGroup[key] = {
+              ...media,
+              musclesWorked: musclesWorkedMap.get(mediaId) ?? null,
+            };
+          });
+
+          return newGroup;
+        });
+      });
+    });
+
+    return workouts;
+  }
   async getWorkoutsByProgramIdSimpleAdmin(
     programId: number,
     running: boolean,
@@ -736,31 +833,84 @@ export class WorkoutsService {
     }
   }
 
+  // async getWorkoutById(id: string): Promise<WorkoutsEntity> {
+  //   try {
+  //     const workout = await this.workoutRepository.findOne({
+  //       where: { id },
+  //       relations: [
+  //         'workoutItems',
+  //         'workoutItems.medias',
+  //         'workoutItems.mediaInfo',
+  //       ],
+  //     });
+
+  //     if (!workout) {
+  //       throw new Error('Workout não encontrado');
+  //     }
+
+  //     // Evita conflito renomeando aqui
+  //     const items = workout.workoutItems;
+
+  //     // Atualiza workoutItems com o retorno da transformação
+  //     workout.workoutItems = transformWorkoutItems(items);
+
+  //     return workout;
+  //   } catch (error) {
+  //     throw new Error(error);
+  //   }
+  // }
+
   async getWorkoutById(id: string): Promise<WorkoutsEntity> {
-    try {
-      const workout = await this.workoutRepository.findOne({
-        where: { id },
-        relations: [
-          'workoutItems',
-          'workoutItems.medias',
-          'workoutItems.mediaInfo',
-        ],
-      });
+    const workout = await this.workoutRepository.findOne({
+      where: { id },
+      relations: [
+        'workoutItems',
+        'workoutItems.medias',
+        'workoutItems.mediaInfo',
+      ],
+    });
 
-      if (!workout) {
-        throw new Error('Workout não encontrado');
-      }
-
-      // Evita conflito renomeando aqui
-      const items = workout.workoutItems;
-
-      // Atualiza workoutItems com o retorno da transformação
-      workout.workoutItems = transformWorkoutItems(items);
-
-      return workout;
-    } catch (error) {
-      throw new Error(error);
+    if (!workout) {
+      throw new Error('Workout não encontrado');
     }
+
+    const items = transformWorkoutItems(workout.workoutItems);
+
+    /**
+     * 1. Extrai todos os mediaIds
+     */
+    const mediaIds = items
+      .flatMap((item) => item.medias)
+      .flatMap((mediaGroup) => mediaGroup)
+      .map((media) => media.id);
+
+    const uniqueMediaIds = [...new Set(mediaIds)];
+
+    /**
+     * 2. Busca muscles_worked em lote
+     */
+    const musclesWorkedList =
+      await this.musclesWorkedService.findByMediaIds(uniqueMediaIds);
+
+    const musclesWorkedMap = new Map(
+      musclesWorkedList.map((mw) => [mw.mediaId, mw]),
+    );
+
+    /**
+     * 3. Injeta musclesWorked em cada media
+     */
+    items.forEach((item) => {
+      item.medias = item.medias.map((mediaGroup) =>
+        mediaGroup.map((media) => ({
+          ...media,
+          musclesWorked: musclesWorkedMap.get(media.id) ?? null,
+        })),
+      );
+    });
+
+    workout.workoutItems = items;
+
+    return workout;
   }
 }
 function transformWorkoutItems(items: any[]) {

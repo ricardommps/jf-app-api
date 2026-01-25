@@ -65,6 +65,9 @@ export class WorkoutsEntity {
   @Column()
   running: boolean;
 
+  @Column({ name: 'muscles_worked' })
+  musclesWorked: boolean;
+
   @Column({ name: 'date_published', type: 'timestamp' })
   datePublished: Date;
 
