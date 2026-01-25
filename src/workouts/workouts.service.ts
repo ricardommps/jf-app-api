@@ -166,6 +166,7 @@ export class WorkoutsService {
       workout.published = false;
       workout.finished = false;
       workout.unrealized = false;
+      workout.musclesWorked = false;
 
       if (workout.workoutItems) {
         workout.workoutItems.forEach((item) => {
@@ -225,6 +226,7 @@ export class WorkoutsService {
       workoutBase.published = false;
       workoutBase.finished = false;
       workoutBase.unrealized = false;
+      workout.musclesWorked = false;
       if (workoutBase.workoutItems) {
         workoutBase.workoutItems.forEach((item) => {
           delete item.id;
