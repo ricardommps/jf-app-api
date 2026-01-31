@@ -38,4 +38,10 @@ export class InvoiceController {
   async getTotalPaidInvoices(@UserId() userId: number) {
     return this.invoiceService.getTotalPaidInvoices(userId);
   }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('/customers-overdue')
+  async getCustomersWithOverdueInvoices() {
+    return this.invoiceService.getCustomersWithOverdueInvoices();
+  }
 }
