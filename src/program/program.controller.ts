@@ -35,6 +35,12 @@ export class ProgramController {
   }
 
   @Roles(UserType.Admin, UserType.Root)
+  @Get('expired')
+  async getExpiredPrograms() {
+    return await this.programService.getExpiredPrograms();
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
   @Get('/viewPdf/:programId')
   async findProgramByIdUViewPdf(@Param('programId') programId) {
     return await this.programService.findProgramByIdUViewPdf(programId);

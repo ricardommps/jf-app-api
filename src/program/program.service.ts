@@ -80,6 +80,7 @@ export class ProgramService {
 
     return programs;
   }
+
   async findProgramById(programId: number) {
     const program = await this.programRepository.findOne({
       where: {
@@ -107,29 +108,6 @@ export class ProgramService {
     return program;
   }
 
-  // async findProgramByIdUViewPdf(programId: number) {
-  //   const program = await this.programRepository.findOne({
-  //     where: {
-  //       id: programId,
-  //       workouts: {
-  //         published: true,
-  //       },
-  //     },
-  //     relations: ['workouts', 'workouts.medias', 'customer'],
-
-  //     order: {
-  //       workouts: {
-  //         datePublished: 'ASC',
-  //       },
-  //     },
-  //   });
-
-  //   if (!program) {
-  //     throw new NotFoundException(`Program id: ${programId} not found`);
-  //   }
-  //   return program;
-  // }
-
   async findProgramByIdUViewPdf(programId: number) {
     const program = await this.programRepository
       .createQueryBuilder('program')
@@ -138,7 +116,7 @@ export class ProgramService {
         'workout',
         'workout.published = true',
       )
-      .leftJoinAndSelect('workout.medias', 'media') // Adicione diretamente aqui
+      .leftJoinAndSelect('workout.medias', 'media')
       .leftJoinAndSelect('program.customer', 'customer')
       .where('program.id = :programId', { programId })
       .orderBy('workout.datePublished', 'ASC')
@@ -149,5 +127,70 @@ export class ProgramService {
     }
 
     return program;
+  }
+
+  async getExpiredPrograms() {
+    const now = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(now.getDate() + 7);
+
+    // Busca todos os programas que vencerão nos próximos 7 dias
+    const programs = await this.programRepository
+      .createQueryBuilder('program')
+      .leftJoinAndSelect('program.customer', 'customer')
+      .where('program.hide = :hide', { hide: false })
+      .andWhere('customer.active = :active', { active: true })
+      .andWhere('program.vs2 = :vs2', { vs2: true })
+      .andWhere('program.end_date IS NOT NULL')
+      .andWhere('program.end_date >= :now', { now })
+      .andWhere('program.end_date <= :nextWeek', { nextWeek })
+      .andWhere('program.type IN (:...types)', { types: [1, 2] })
+      .orderBy('customer.name', 'ASC')
+      .addOrderBy('program.end_date', 'ASC')
+      .getMany();
+
+    // Função para calcular dias restantes até vencer
+    const calculateDaysUntilExpiration = (endDate: Date): number => {
+      const end = new Date(endDate);
+      const endOfDay = new Date(
+        end.getFullYear(),
+        end.getMonth(),
+        end.getDate(),
+        23,
+        59,
+        59,
+        999,
+      );
+
+      const diffTime = endOfDay.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return diffDays >= 0 ? diffDays : 0;
+    };
+
+    // Agrupa programas por cliente
+    const customerProgramsMap = new Map();
+
+    programs.forEach((program) => {
+      const customerId = program.customerId;
+
+      if (!customerProgramsMap.has(customerId)) {
+        customerProgramsMap.set(customerId, {
+          customerId: program.customer.id,
+          customerName: program.customer.name,
+          avatar: program.customer.avatar,
+          programs: [],
+        });
+      }
+
+      customerProgramsMap.get(customerId).programs.push({
+        programType: program.type === 1 ? 'corrida' : 'força',
+        programTypeCode: program.type,
+        endDate: program.endDate,
+        daysUntilExpiration: calculateDaysUntilExpiration(program.endDate),
+      });
+    });
+
+    return Array.from(customerProgramsMap.values());
   }
 }
