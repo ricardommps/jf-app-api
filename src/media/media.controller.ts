@@ -18,4 +18,14 @@ export class MediaController {
 
     return this.mediaService.getMedias(userId.toString());
   }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('/getMediasMusclesWorked')
+  async getMediasMusclesWorked(@UserId() userId: number) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+
+    return this.mediaService.getMediasMusclesWorked(userId.toString());
+  }
 }

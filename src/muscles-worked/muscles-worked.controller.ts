@@ -23,6 +23,12 @@ export class MusclesWorkedController {
   }
 
   @Roles(UserType.Admin, UserType.Root)
+  @Get('/getMedia/:mediaId')
+  findByMediaNewMedia(@Param('mediaId') mediaId: string) {
+    return this.service.findByMediaIdNew(mediaId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
   @Put(':mediaId')
   update(
     @Param('mediaId') mediaId: string,
