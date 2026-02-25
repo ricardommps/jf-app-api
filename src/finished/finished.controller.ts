@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { UserId } from 'src/decorators/user-id.decorator';
 import { FinishedEntity } from 'src/entities/finished.entity';
 import { reviewCommentPayload } from 'src/types/review-comment.type';
 import { Roles } from '../decorators/roles.decorator';
+import { UserId } from '../decorators/user-id.decorator';
 import { UserType } from '../utils/user-type.enum';
 import { FinishedService } from './finished.service';
 

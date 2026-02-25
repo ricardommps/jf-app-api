@@ -7,9 +7,9 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
 import { SaveMusclesWorked } from 'src/types/muscles-worked.type';
 import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
 import { MusclesWorkedService } from './muscles-worked.service';
 
 @Controller('muscles-worked')

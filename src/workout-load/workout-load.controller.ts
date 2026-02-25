@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { Roles } from 'src/decorators/roles.decorator';
-import { UserId } from 'src/decorators/user-id.decorator';
 import { WorkoutLoadEntity } from 'src/entities/workoutLoad.entity';
 import { UserType } from 'src/utils/user-type.enum';
+import { Roles } from '../decorators/roles.decorator';
+import { UserId } from '../decorators/user-id.decorator';
 import { WorkoutLoadService } from './workout-load.service';
 
 @Controller('workout-load')

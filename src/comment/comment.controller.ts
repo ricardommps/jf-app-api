@@ -7,10 +7,10 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { IsAdmin } from 'src/decorators/is-admin.decorator';
-import { UserId } from 'src/decorators/user-id.decorator';
-import { CreateCommentDto } from 'src/dtos/create-comment.dto';
+import { IsAdmin } from '../decorators/is-admin.decorator';
 import { Roles } from '../decorators/roles.decorator';
+import { UserId } from '../decorators/user-id.decorator';
+import { CreateCommentDto } from '../dtos/create-comment.dto';
 import { UserType } from '../utils/user-type.enum';
 import { CommentService } from './comment.service';
 
