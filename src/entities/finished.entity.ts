@@ -4,9 +4,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CommentEntity } from './comment.entity';
 import { WorkoutEntity } from './workout.entity';
 import { WorkoutsEntity } from './workouts.entity';
 
@@ -45,9 +47,17 @@ export class FinishedEntity {
   @Column({ nullable: true })
   review: boolean | null;
 
+  /**
+   * @deprecated Use CommentEntity com isAdmin=false ao invés deste campo
+   * Mantido apenas para compatibilidade com dados antigos
+   */
   @Column({ type: 'varchar', nullable: true })
   comments: string;
 
+  /**
+   * @deprecated Use CommentEntity com isAdmin=true ao invés deste campo
+   * Mantido apenas para compatibilidade com dados antigos
+   */
   @Column({ type: 'varchar', nullable: true })
   feedback: string;
 
@@ -149,4 +159,7 @@ export class FinishedEntity {
   })
   @JoinColumn({ name: 'workout_id' })
   workout: WorkoutEntity;
+
+  @OneToMany(() => CommentEntity, (comment) => comment.finished)
+  comments_relation: CommentEntity[];
 }

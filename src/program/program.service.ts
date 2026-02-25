@@ -9,22 +9,26 @@ import { Repository } from 'typeorm';
 import { ProgramEntity } from '../entities/program.entity';
 
 function isExpired(startDate: string, endDate: string): boolean {
+  if (!endDate) return false;
+
   const currentDate = new Date();
 
-  // Garantir que `endDate` seja tratado como o final do dia
   const parsedEndDate = new Date(endDate);
-  const endOfDay = new Date(
+
+  // adiciona 2 dias de margem
+  parsedEndDate.setDate(parsedEndDate.getDate() + 2);
+
+  const endOfDayWithMargin = new Date(
     parsedEndDate.getFullYear(),
     parsedEndDate.getMonth(),
     parsedEndDate.getDate(),
     23,
     59,
     59,
-    999, // Final do dia
+    999,
   );
 
-  // Retornar true se a data atual for maior que o final do dia de `endDate`
-  return currentDate > endOfDay;
+  return currentDate > endOfDayWithMargin;
 }
 
 @Injectable()
@@ -94,7 +98,7 @@ export class ProgramService {
     if (program.startDate && program.endDate) {
       expired = isExpired(
         program.startDate.toISOString(),
-        program.endDate ? program.endDate.toISOString() : null,
+        program.endDate.toISOString(),
       );
     }
 

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { UserId } from 'src/decorators/user-id.decorator';
 import { FinishedEntity } from 'src/entities/finished.entity';
+import { reviewCommentPayload } from 'src/types/review-comment.type';
 import { Roles } from '../decorators/roles.decorator';
 import { UserType } from '../utils/user-type.enum';
 import { FinishedService } from './finished.service';
@@ -11,8 +12,8 @@ export class FinishedController {
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Post()
-  async createFinished(@Body() payload) {
-    return this.finishedService.createFinished(payload);
+  async createFinished(@Body() payload, @UserId() userId: number) {
+    return this.finishedService.createFinished(payload, userId);
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
@@ -54,6 +55,12 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('historyComments')
+  async historyComments(@UserId() userId: number) {
+    return await this.finishedService.historyComments(userId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('getTrimp')
   async getTrimp(@UserId() userId: number) {
     return await this.finishedService.getTrimp(userId);
@@ -72,6 +79,12 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root)
+  @Get('/newComments')
+  async getReviewedWithAdminComments() {
+    return this.finishedService.getReviewedWithAdminComments();
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
   @Put('/review/:customerId/:id')
   async reviewWorkout(
     @Body() reviewWorkoutDto,
@@ -80,6 +93,20 @@ export class FinishedController {
   ): Promise<FinishedEntity> {
     const { feedback } = reviewWorkoutDto;
     return this.finishedService.reviewWorkout(customerId, Number(id), feedback);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Put('/reviewComment/:customerId/:id')
+  async reviewWorkoutComment(
+    @Body() reviewWorkoutDto: reviewCommentPayload,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ): Promise<FinishedEntity> {
+    return this.finishedService.reviewWorkoutComments(
+      customerId,
+      Number(id),
+      reviewWorkoutDto,
+    );
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)

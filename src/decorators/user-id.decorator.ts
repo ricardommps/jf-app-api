@@ -12,3 +12,9 @@ export const UserMe = createParamDecorator((_, ctx: ExecutionContext) => {
   const loginPayload = authorizantionTologinPayload(authorization);
   return loginPayload;
 });
+
+export const AdminId = createParamDecorator((_, ctx: ExecutionContext) => {
+  const { authorization } = ctx.switchToHttp().getRequest().headers;
+  const loginPayload = authorizantionTologinPayload(authorization);
+  return loginPayload?.typeUser;
+});

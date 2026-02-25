@@ -1,8 +1,11 @@
 import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CommentService } from 'src/comment/comment.service';
+import { CommentEntity } from 'src/entities/comment.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { NotificationService } from 'src/notification/notification.service';
-import { Repository } from 'typeorm';
+import { reviewCommentPayload } from 'src/types/review-comment.type';
+import { In, Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
 
@@ -14,12 +17,17 @@ export class FinishedService {
     @InjectRepository(WorkoutsEntity)
     private readonly workoutRepository: Repository<WorkoutsEntity>,
 
+    @InjectRepository(CommentEntity)
+    private readonly commentRepository: Repository<CommentEntity>,
+
     private readonly firebaseService: FirebaseService,
+
+    private readonly commentService: CommentService,
 
     private readonly notificationService: NotificationService,
   ) {}
 
-  async createFinished(payload) {
+  async createFinished(payload, userId) {
     try {
       const workout = await this.workoutRepository.findOne({
         where: { id: payload.workoutsId },
@@ -28,9 +36,17 @@ export class FinishedService {
       workout.finished = true;
       workout.unrealized = payload.unrealized;
       await this.workoutRepository.save(workout);
-      return this.finishedRepository.save({
+      const finished = await this.finishedRepository.save({
         ...payload,
       });
+      if (payload.comments) {
+        await this.commentService.createFinishedCommnet({
+          finishedId: finished.id,
+          content: payload.comments,
+          authorUserId: Number(userId), // comentário em nome do aluno
+        });
+      }
+      return finished;
     } catch (error) {
       throw error;
     }
@@ -226,6 +242,125 @@ export class FinishedService {
     return formattedFinishedTrainings;
   }
 
+  async historyComments(userId: number) {
+    const query = `
+      SELECT 
+        finished.*,
+        training.name as "trainingName",
+        training.subtitle as "trainingSubtitle", 
+        training.description as "trainingDesc",
+        training.running as "trainingRunning",
+        training.date_published as "trainingDatePublished",
+        training.id as "trainingId",
+        pro.name as "programName",
+        pro.type,
+        pro.goal,
+        pro.pv,
+        pro.pace as "programpace",
+        pro.difficulty_level as "difficulty",
+        pro.reference_month as "month",
+        pro.id as "programId"
+      FROM finished
+      INNER JOIN (
+        SELECT 
+          id::text as id,
+          name,
+          subtitle,
+          description,
+          running,
+          date_published,
+          program_id,
+          'old' as source
+        FROM workout
+        WHERE program_id IN (
+          SELECT id FROM program WHERE customer_id = $1
+        )
+        
+        UNION ALL
+        
+        SELECT 
+          id::text as id,
+          title as name,
+          subtitle,
+          description,
+          running,
+          date_published,
+          program_id,
+          'new' as source
+        FROM workouts
+        WHERE program_id IN (
+          SELECT id FROM program WHERE customer_id = $1
+        )
+      ) training ON (
+        (finished.workout_id::text = training.id AND training.source = 'old') OR
+        (finished.workouts_id::text = training.id AND training.source = 'new')
+      )
+      INNER JOIN program pro ON training.program_id = pro.id
+      WHERE TO_TIMESTAMP(finished.execution_day, 'YYYY-MM-DD') >= CURRENT_DATE - INTERVAL '30 days'
+      ORDER BY finished.execution_day DESC
+    `;
+
+    const results = await this.finishedRepository.manager.query(query, [
+      userId,
+    ]);
+
+    const finishedIds = results.map((r) => r.id);
+
+    // 🔥 Busca todos comentários de uma vez
+    const comments = finishedIds.length
+      ? await this.commentRepository.find({
+          where: { finishedId: In(finishedIds) },
+          relations: ['author'],
+          order: { createdAt: 'ASC' },
+        })
+      : [];
+
+    // 🔥 Agrupa por finishedId
+    const commentsByFinished = comments.reduce(
+      (acc, comment) => {
+        if (!acc[comment.finishedId]) {
+          acc[comment.finishedId] = [];
+        }
+
+        acc[comment.finishedId].push({
+          id: comment.id,
+          content: comment.content,
+          isAdmin: comment.isAdmin,
+          createdAt: comment.createdAt,
+          updatedAt: comment.updatedAt,
+          read: comment.read,
+          parentId: comment.parentId,
+          author: {
+            id: comment.author.id,
+            name: comment.author.name,
+            email: comment.author.email,
+            avatar: comment.author.avatar,
+          },
+        });
+
+        return acc;
+      },
+      {} as Record<number, any[]>,
+    );
+
+    // 🔥 Formata camelCase + adiciona comments
+    return results.map((row) => {
+      const formatted: any = {};
+
+      Object.keys(row).forEach((key) => {
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) =>
+          letter.toUpperCase(),
+        );
+        formatted[camelKey] = row[key];
+      });
+
+      return {
+        ...formatted,
+        comments: commentsByFinished[formatted.id] || [],
+      };
+    });
+  }
+
   async findFinishedById(userId: number, id: number) {
     const query = `
       SELECT 
@@ -340,6 +475,86 @@ export class FinishedService {
     return this.getFinishedById(id);
   }
 
+  async reviewWorkoutComments(
+    customerId: string,
+    id: number,
+    reviewWorkoutDto: reviewCommentPayload,
+  ) {
+    const finished = await this.finishedRepository.findOne({
+      where: {
+        id: id,
+      },
+    });
+
+    if (!finished) {
+      throw new NotFoundException(`finished not found`);
+    }
+
+    const createComment = await this.commentService.createComment(
+      Number(customerId), // loggedUserId (admin logado ou contexto do admin)
+      {
+        finishedId: id,
+        content: reviewWorkoutDto.feedback,
+        authorUserId: Number(customerId), // comentário em nome do aluno
+      },
+      true, // isAdmin
+    );
+    //markAsRead
+    if (createComment.id) {
+      if (reviewWorkoutDto.commentId) {
+        await this.commentService.markAsRead(
+          Number(customerId),
+          [reviewWorkoutDto.commentId],
+          true,
+        );
+      }
+
+      const finishedSave = await this.finishedRepository.save({
+        ...finished,
+        feedback: reviewWorkoutDto.feedback,
+        review: true,
+      });
+
+      if (customerId && finished) {
+        // {
+        //   title: 'Título da Notificação',
+        //   body: 'Corpo da notificação',
+        //   screen: 'profile',
+        //   params: { id: '123', source: 'push' },
+        // }
+        const payloadNotification = {
+          recipientId: customerId,
+          title: 'Olá',
+          content:
+            'O feedback do seu último treino já está disponível! Vem ver!',
+          type: 'feedback',
+          link: finishedSave.id,
+        };
+        const notification =
+          await this.notificationService.createNotification(
+            payloadNotification,
+          );
+        const message = {
+          title: payloadNotification.title,
+          body: payloadNotification.content,
+          data: {
+            url: `jfapp://feedback?feedbackId=${finishedSave.id}&notificationId=${notification.id}`,
+            screen: 'feedback',
+            params: `{\"feedbackId\":\"${finishedSave.id}\",\"notificationId\":\"${notification.id}\",\"source\":\"push\"}`,
+          },
+        };
+        await this.firebaseService.sendNotificationNew(customerId, message);
+      }
+
+      return this.getFinishedById(id);
+    } else {
+      throw new HttpException(
+        'Erro ao criar o comentário de feedback',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async getUnreviewedFinished() {
     const query = `
       SELECT 
@@ -351,14 +566,6 @@ export class FinishedService {
         training.id as "trainingId",
         training.source as "trainingSource",
         training.running as "trainingRunning",
-        pro.name as "programName",
-        pro.type as "type",
-        pro.goal as "goal",
-        pro.pv as "pv",
-        pro.pace as "programpace",
-        pro.difficulty_level as "difficulty",
-        pro.reference_month as "month",
-        pro.id as "programId",
         customer.id as "customerId",
         customer.name as "customerName",
         customer.email as "customerEmail",
@@ -372,7 +579,7 @@ export class FinishedService {
           subtitle, 
           description, 
           date_published, 
-          program_id, 
+          program_id,
           running,
           'old' as source
         FROM workout
@@ -383,7 +590,7 @@ export class FinishedService {
           subtitle, 
           description, 
           date_published, 
-          program_id, 
+          program_id,
           running,
           'new' as source
         FROM workouts
@@ -398,6 +605,42 @@ export class FinishedService {
     `;
 
     const results = await this.finishedRepository.manager.query(query);
+
+    // Buscar todos os IDs dos finished
+    const finishedIds = results.map((r) => r.id);
+
+    // Buscar todos os comentários de uma vez
+    const comments = await this.commentRepository.find({
+      where: finishedIds.length > 0 ? { finishedId: In(finishedIds) } : {},
+      relations: ['author'],
+      order: { createdAt: 'ASC' },
+    });
+
+    // Agrupar comentários por finishedId
+    const commentsByFinished = comments.reduce(
+      (acc, comment) => {
+        if (!acc[comment.finishedId]) {
+          acc[comment.finishedId] = [];
+        }
+        acc[comment.finishedId].push({
+          id: comment.id,
+          content: comment.content,
+          isAdmin: comment.isAdmin,
+          createdAt: comment.createdAt,
+          updatedAt: comment.updatedAt,
+          read: comment.read,
+          author: {
+            id: comment.author.id,
+            name: comment.author.name,
+            email: comment.author.email,
+            avatar: comment.author.avatar,
+          },
+        });
+        return acc;
+      },
+      {} as Record<number, any[]>,
+    );
+
     // Formatar para camelCase
     return results.map((row) => {
       const formatted: any = {};
@@ -419,8 +662,6 @@ export class FinishedService {
         trimp: formatted.trimp,
         review: formatted.review,
         executionDay: formatted.executionDay,
-        comments: formatted.comments,
-        feedback: formatted.feedback,
         unrealized: formatted.unrealized,
         intensities: formatted.intensities,
         outdoor: formatted.outdoor,
@@ -453,8 +694,164 @@ export class FinishedService {
           phone: formatted.customerPhone,
           avatar: formatted.customerAvatar,
         },
+        comments: commentsByFinished[formatted.id] || [],
       };
     });
+  }
+
+  async getReviewedWithAdminComments() {
+    const query = `
+      SELECT 
+        finished.*,
+        training.name as "trainingName",
+        training.subtitle as "trainingSubtitle",
+        training.description as "trainingDesc",
+        training.date_published as "trainingDatePublished",
+        training.id as "trainingId",
+        training.source as "trainingSource",
+        training.running as "trainingRunning",
+        customer.id as "customerId",
+        customer.name as "customerName",
+        customer.email as "customerEmail",
+        customer.phone as "customerPhone",
+        customer.avatar as "customerAvatar"
+      FROM finished
+      INNER JOIN (
+        SELECT 
+          id::text as id, 
+          name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id,
+          running,
+          'old' as source
+        FROM workout
+        UNION ALL
+        SELECT 
+          id::text as id, 
+          title as name, 
+          subtitle, 
+          description, 
+          date_published, 
+          program_id,
+          running,
+          'new' as source
+        FROM workouts
+      ) training ON (
+        (finished.workout_id::text = training.id AND training.source = 'old') OR
+        (finished.workouts_id::text = training.id AND training.source = 'new')
+      )
+      LEFT JOIN program pro ON training.program_id = pro.id
+      LEFT JOIN customer ON pro.customer_id = customer.id
+      WHERE finished.review = true
+      ORDER BY finished.execution_day DESC
+    `;
+
+    const results = await this.finishedRepository.manager.query(query);
+    const finishedIds = results.map((r) => r.id);
+
+    if (!finishedIds.length) {
+      return [];
+    }
+
+    const comments = await this.commentRepository.find({
+      where: {
+        finishedId: In(finishedIds),
+      },
+      relations: ['author'],
+      order: { createdAt: 'ASC' },
+    });
+
+    // Agrupar comentários por finishedId
+    const commentsByFinished = comments.reduce(
+      (acc, comment) => {
+        if (!acc[comment.finishedId]) {
+          acc[comment.finishedId] = [];
+        }
+
+        acc[comment.finishedId].push({
+          id: comment.id,
+          content: comment.content,
+          isAdmin: comment.isAdmin,
+          createdAt: comment.createdAt,
+          updatedAt: comment.updatedAt,
+          read: comment.read,
+          parentId: comment.parentId, // 👈 obrigatório
+          author: {
+            id: comment.author.id,
+            name: comment.author.name,
+            email: comment.author.email,
+            avatar: comment.author.avatar,
+          },
+        });
+
+        return acc;
+      },
+      {} as Record<number, any[]>,
+    );
+
+    return results
+      .map((row) => {
+        const formatted: any = {};
+        Object.keys(row).forEach((key) => {
+          const camelKey = key.replace(/_([a-z])/g, (_, letter) =>
+            letter.toUpperCase(),
+          );
+          formatted[camelKey] = row[key];
+        });
+
+        const comments = commentsByFinished[formatted.id] || [];
+
+        const shouldReturn = comments.some(
+          (c) => c.isAdmin === false && c.read === false && c.parentId !== null,
+        );
+
+        if (!shouldReturn) {
+          return null;
+        }
+
+        return {
+          id: formatted.id,
+          workoutId: formatted.workoutId || formatted.workoutsId,
+          distance: formatted.distance,
+          duration: formatted.duration,
+          pace: formatted.pace,
+          link: formatted.link,
+          rpe: formatted.rpe,
+          trimp: formatted.trimp,
+          review: formatted.review,
+          executionDay: formatted.executionDay,
+          unrealized: formatted.unrealized,
+          intensities: formatted.intensities,
+          outdoor: formatted.outdoor,
+          unitMeasurement: formatted.unitMeasurement,
+          typeWorkout: formatted.typeWorkout,
+          distanceInMeters: formatted.distanceInMeters,
+          durationInSeconds: formatted.durationInSeconds,
+          paceInSeconds: formatted.paceInSeconds,
+          createdAt: formatted.createdAt,
+          updatedAt: formatted.updatedAt,
+          workout: {
+            id: formatted.trainingId,
+            name: formatted.trainingName,
+            subtitle: formatted.trainingSubtitle,
+            description: formatted.trainingDesc,
+            datePublished: formatted.trainingDatePublished,
+            source: formatted.trainingSource,
+            running: formatted.trainingRunning,
+          },
+          customer: {
+            id: formatted.customerId,
+            name: formatted.customerName,
+            email: formatted.customerEmail,
+            phone: formatted.customerPhone,
+            avatar: formatted.customerAvatar,
+          },
+          comments,
+        };
+      })
+      .filter(Boolean);
   }
 
   async getTrimp(userId: number) {
