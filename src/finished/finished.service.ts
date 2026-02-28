@@ -658,6 +658,8 @@ export class FinishedService {
         duration: formatted.duration,
         pace: formatted.pace,
         link: formatted.link,
+        linkstrava: formatted.linkstrava,
+        summaryPolyline: formatted.summaryPolyline,
         rpe: formatted.rpe,
         trimp: formatted.trimp,
         review: formatted.review,
@@ -1051,5 +1053,86 @@ export class FinishedService {
       totalDays,
       totalRunningRaces,
     };
+  }
+
+  async findAllByWorkoutId(workoutId: string) {
+    const results = await this.finishedRepository
+      .createQueryBuilder('finished')
+      .leftJoinAndSelect('finished.workouts', 'workouts')
+      .where('finished.workouts_id = :workoutId', { workoutId })
+      .orderBy('finished.execution_day', 'DESC')
+      .getMany();
+
+    if (!results.length) {
+      return [];
+    }
+
+    const finishedIds = results.map((f) => f.id);
+
+    const comments = await this.commentRepository.find({
+      where: { finishedId: In(finishedIds) },
+      relations: ['author'],
+      order: { createdAt: 'ASC' },
+    });
+
+    const commentsByFinished = comments.reduce(
+      (acc, comment) => {
+        if (!acc[comment.finishedId]) {
+          acc[comment.finishedId] = [];
+        }
+        acc[comment.finishedId].push({
+          id: comment.id,
+          content: comment.content,
+          isAdmin: comment.isAdmin,
+          read: comment.read,
+          parentId: comment.parentId,
+          createdAt: comment.createdAt,
+          updatedAt: comment.updatedAt,
+          author: {
+            id: comment.author.id,
+            name: comment.author.name,
+            email: comment.author.email,
+            avatar: comment.author.avatar,
+          },
+        });
+        return acc;
+      },
+      {} as Record<number, any[]>,
+    );
+
+    return results.map((finished) => ({
+      id: finished.id,
+      workoutsId: finished.workoutsId,
+      executionDay: finished.executionDay,
+      distance: finished.distance,
+      duration: finished.duration,
+      pace: finished.pace,
+      link: finished.link,
+      linkstrava: finished.linkstrava,
+      summaryPolyline: finished.summaryPolyline,
+      rpe: finished.rpe,
+      trimp: finished.trimp,
+      review: finished.review,
+      unrealized: finished.unrealized,
+      outdoor: finished.outdoor,
+      intensities: finished.intensities,
+      unitMeasurement: finished.unitMeasurement,
+      typeWorkout: finished.typeWorkout,
+      distanceInMeters: finished.distanceInMeters,
+      durationInSeconds: finished.durationInSeconds,
+      paceInSeconds: finished.paceInSeconds,
+      coolDownDuration: finished.coolDownDuration,
+      coolDownIntensities: finished.coolDownIntensities,
+      warmUpDuration: finished.warmUpDuration,
+      warmUpIntensities: finished.warmUpIntensities,
+      checkList: finished.checkList,
+      createdAt: finished.createdAt,
+      updatedAt: finished.updatedAt,
+      workout: {
+        title: finished.workouts?.title ?? null,
+        subtitle: finished.workouts?.subtitle ?? null,
+      },
+      comments: commentsByFinished[finished.id] || [],
+    }));
   }
 }

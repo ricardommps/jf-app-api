@@ -195,7 +195,6 @@ export class WorkoutsService {
       const results = await Promise.all(promises);
       return results;
     } catch (error) {
-      console.log(error);
       throw new Error(`Error cloning workout: ${error.message}`);
     }
   }
@@ -400,7 +399,6 @@ export class WorkoutsService {
 
       return await this.getWorkoutWithRelations(workoutId, workoutItems);
     } catch (err) {
-      console.log(err);
       throw err; // É importante re-lançar o erro
     }
   }

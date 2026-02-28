@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -10,6 +11,7 @@ import { DeviceInfoEntity } from './device.entity';
 import { InvoiceEntity } from './invoice.entity';
 import { NotificationEntity } from './notification.entity';
 import { ProgramEntity } from './program.entity';
+import { StravaConnectionEntity } from './strava-connection.entity';
 import { WorkoutLoadEntity } from './workoutLoad.entity';
 
 @Entity({ name: 'customer' })
@@ -127,4 +129,10 @@ export class CustomerEntity {
 
   @OneToMany(() => DeviceInfoEntity, (deviceInfo) => deviceInfo.customer)
   deviceInfos?: DeviceInfoEntity[];
+
+  @OneToOne(
+    () => StravaConnectionEntity,
+    (stravaConnection) => stravaConnection.customer,
+  )
+  stravaConnection?: StravaConnectionEntity;
 }

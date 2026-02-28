@@ -126,6 +126,12 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('/history/:id')
+  async findAllByWorkoutId(@Param('id') id: string) {
+    return await this.finishedService.findAllByWorkoutId(id);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('/:id')
   async findFinishedById(@UserId() userId: number, @Param('id') id: string) {
     return await this.finishedService.findFinishedById(userId, Number(id));

@@ -18,6 +18,7 @@ import { MediaModule } from './media/media.module';
 import { MusclesWorkedModule } from './muscles-worked/muscles-worked.module';
 import { NotificationModule } from './notification/notification.module';
 import { ProgramModule } from './program/program.module';
+import { StravaModule } from './strava/strava.module';
 import { UserModule } from './user/user.module';
 import { WorkoutLoadModule } from './workout-load/workout-load.module';
 import { WorkoutsModule } from './workouts/workouts.module';
@@ -38,6 +39,7 @@ import { RolesGuard } from './guards/roles.guard';
     // 🔹 JWT (necessário para o RolesGuard)
     JwtModule.register({
       secret: process.env.JWT_SECRET,
+      global: true,
     }),
 
     // 🔹 Application modules
@@ -56,6 +58,7 @@ import { RolesGuard } from './guards/roles.guard';
     DeviceInfoModule,
     MusclesWorkedModule,
     CommentModule,
+    StravaModule,
   ],
 
   providers: [

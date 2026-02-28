@@ -38,6 +38,16 @@ export class FinishedEntity {
   @Column({ type: 'text', nullable: true })
   link: string;
 
+  @Column({
+    type: 'text',
+    name: 'summary_polyline',
+    nullable: true,
+  })
+  summaryPolyline?: string;
+
+  @Column({ type: 'text', nullable: true })
+  linkstrava: string;
+
   @Column({ type: 'int', nullable: true })
   rpe: number;
 
@@ -46,6 +56,12 @@ export class FinishedEntity {
 
   @Column({ nullable: true })
   review: boolean | null;
+
+  @Column({ name: 'external_id', nullable: true })
+  externalId: number;
+
+  @Column({ name: 'source', nullable: true })
+  source: string; // 'manual' | 'strava'
 
   /**
    * @deprecated Use CommentEntity com isAdmin=false ao invés deste campo
