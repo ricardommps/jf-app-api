@@ -136,9 +136,9 @@ export class ProgramService {
   async getExpiredPrograms() {
     const now = new Date();
     const nextWeek = new Date();
-    nextWeek.setDate(now.getDate() + 7);
+    nextWeek.setDate(now.getDate() + 9);
 
-    // Busca todos os programas que vencerão nos próximos 7 dias
+    // Busca todos os programas que vencerão nos próximos 9 dias
     const programs = await this.programRepository
       .createQueryBuilder('program')
       .leftJoinAndSelect('program.customer', 'customer')
