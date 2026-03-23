@@ -1,4 +1,10 @@
-import { Controller, Get, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Roles } from '../decorators/roles.decorator';
 import { UserId } from '../decorators/user-id.decorator';
 import { MediaEntity } from '../entities/media.entity';
@@ -17,6 +23,15 @@ export class MediaController {
     }
 
     return this.mediaService.getMedias(userId.toString());
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Post()
+  async createMedia(
+    @Body() createMediaDto,
+    @UserId() userId: number,
+  ): Promise<MediaEntity> {
+    return this.mediaService.createMedia(createMediaDto, userId);
   }
 
   @Roles(UserType.Admin, UserType.Root)

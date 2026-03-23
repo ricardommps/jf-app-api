@@ -65,4 +65,11 @@ export class MediaService {
         : null,
     }));
   }
+
+  async createMedia(createMediaDto, userId: number): Promise<MediaEntity> {
+    return this.mediaRepository.save({
+      ...createMediaDto,
+      userId,
+    });
+  }
 }
