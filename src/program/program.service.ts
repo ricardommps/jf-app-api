@@ -135,10 +135,26 @@ export class ProgramService {
 
   async getExpiredPrograms() {
     const now = new Date();
-    const nextWeek = new Date();
-    nextWeek.setDate(now.getDate() + 9);
+    // Normaliza para o início do dia atual (00:00:00)
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
 
-    // Busca todos os programas que vencerão nos próximos 9 dias
+    // 3 dias antes (para incluir programas que venceram recentemente)
+    const threeDaysAgo = new Date(startOfToday);
+    threeDaysAgo.setDate(startOfToday.getDate() - 3);
+
+    // 9 dias depois
+    const nextWeek = new Date(startOfToday);
+    nextWeek.setDate(startOfToday.getDate() + 9);
+
+    // Busca todos os programas que venceram nos últimos 3 dias ou vencerão nos próximos 9 dias
     const programs = await this.programRepository
       .createQueryBuilder('program')
       .leftJoinAndSelect('program.customer', 'customer')
@@ -146,7 +162,7 @@ export class ProgramService {
       .andWhere('customer.active = :active', { active: true })
       .andWhere('program.vs2 = :vs2', { vs2: true })
       .andWhere('program.end_date IS NOT NULL')
-      .andWhere('program.end_date >= :now', { now })
+      .andWhere('program.end_date >= :threeDaysAgo', { threeDaysAgo })
       .andWhere('program.end_date <= :nextWeek', { nextWeek })
       .andWhere('program.type IN (:...types)', { types: [1, 2] })
       .orderBy('customer.name', 'ASC')
@@ -169,7 +185,7 @@ export class ProgramService {
       const diffTime = endOfDay.getTime() - now.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      return diffDays >= 0 ? diffDays : 0;
+      return diffDays; // Pode ser negativo se já venceu
     };
 
     // Agrupa programas por cliente
