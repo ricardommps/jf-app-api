@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { FinishedEntity } from 'src/entities/finished.entity';
 import { ProgramEntity } from 'src/entities/program.entity';
 import { MusclesWorkedService } from 'src/muscles-worked/muscles-worked.service';
-import { Between, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
 import { WorkoutItemMediaEntity } from '../entities/workoutItemMedia.entity';
@@ -52,6 +53,9 @@ export class WorkoutsService {
 
     @InjectRepository(ProgramEntity)
     private programRepository: Repository<ProgramEntity>,
+
+    @InjectRepository(FinishedEntity)
+    private readonly finishedRepository: Repository<FinishedEntity>,
   ) {}
 
   async createWorkout(workout): Promise<WorkoutWithGroupedMedias> {
@@ -263,6 +267,22 @@ export class WorkoutsService {
     const existingWorkout = await this.workoutRepository.findOne({
       where: { id },
     });
+
+    if (!existingWorkout) {
+      throw new NotFoundException('Workout não encontrado');
+    }
+
+    const hasFinishedHistory = await this.finishedRepository.exist({
+      where: { workoutsId: id },
+    });
+
+    if (hasFinishedHistory) {
+      existingWorkout.hide = true;
+      existingWorkout.published = false;
+
+      return await this.workoutRepository.save(existingWorkout);
+    }
+
     return await this.workoutRepository.remove(existingWorkout);
   }
 
@@ -688,7 +708,8 @@ export class WorkoutsService {
       .leftJoinAndSelect('workoutItems.medias', 'medias')
       .leftJoinAndSelect('workout.history', 'finished')
       .where('workout.programId = :programId', { programId })
-      .andWhere('workout.running = :running', { running });
+      .andWhere('workout.running = :running', { running })
+      .andWhere('COALESCE(workout.hide, false) = false');
 
     if (published !== undefined) {
       query.andWhere('workout.published = :published', { published });
@@ -783,7 +804,8 @@ export class WorkoutsService {
         .leftJoinAndSelect('workoutItems.medias', 'medias')
         .leftJoinAndSelect('workout.history', 'finished')
         .where('workout.programId = :programId', { programId })
-        .andWhere('workout.running = :running', { running });
+        .andWhere('workout.running = :running', { running })
+        .andWhere('COALESCE(workout.hide, false) = false');
 
       if (published !== undefined) {
         query.andWhere('workout.published = :published', { published });
@@ -818,14 +840,17 @@ export class WorkoutsService {
       const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0);
       const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
 
-      const workouts = await this.workoutRepository.find({
-        where: {
-          programId,
-          title: 'COMPETICAO',
-          datePublished: Between(startOfYear, endOfYear),
-        },
-        order: { datePublished: 'DESC' },
-      });
+      const workouts = await this.workoutRepository
+        .createQueryBuilder('workout')
+        .where('workout.programId = :programId', { programId })
+        .andWhere('workout.title = :title', { title: 'COMPETICAO' })
+        .andWhere('workout.datePublished BETWEEN :startOfYear AND :endOfYear', {
+          startOfYear,
+          endOfYear,
+        })
+        .andWhere('COALESCE(workout.hide, false) = false')
+        .orderBy('workout.datePublished', 'DESC')
+        .getMany();
 
       return workouts;
     } catch (error) {

@@ -21,7 +21,7 @@ export class FinishedEntity {
   workoutId: number;
 
   @Column({ name: 'workouts_id' })
-  workoutsId: number;
+  workoutsId: string;
 
   @Column({ name: 'execution_day' })
   executionDay: string;
@@ -165,13 +165,13 @@ export class FinishedEntity {
   updatedAt: Date;
 
   @ManyToOne(() => WorkoutsEntity, (workout) => workout.id, {
-    onDelete: 'CASCADE',
+    onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'workouts_id' })
   workouts: WorkoutsEntity;
 
   @ManyToOne(() => WorkoutEntity, (workout) => workout.id, {
-    onDelete: 'CASCADE',
+    onDelete: 'NO ACTION',
   })
   @JoinColumn({ name: 'workout_id' })
   workout: WorkoutEntity;

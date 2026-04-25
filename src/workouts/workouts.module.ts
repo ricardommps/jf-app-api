@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProgramEntity } from 'src/entities/program.entity';
 import { MusclesWorkedModule } from 'src/muscles-worked/muscles-worked.module';
+import { FinishedEntity } from '../entities/finished.entity';
 import { MediaEntity } from '../entities/media.entity';
 import { MediaInfoEntity } from '../entities/mediaInfo.entity';
 import { WorkoutItemMediaEntity } from '../entities/workoutItemMedia.entity';
@@ -18,6 +19,7 @@ import { WorkoutsService } from './workouts.service';
       WorkoutItemMediaEntity,
       MediaInfoEntity,
       ProgramEntity,
+      FinishedEntity,
     ]),
     MusclesWorkedModule,
   ],
