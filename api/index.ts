@@ -1,7 +1,9 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import serverlessExpress from '@vendia/serverless-express';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import * as bodyParser from 'body-parser';
+import express from 'express';
+
 import { AppModule } from '../src/app.module';
 
 const allowedOrigins = [
@@ -10,35 +12,13 @@ const allowedOrigins = [
   'http://localhost:3000',
 ];
 
-let cachedServer: any;
+const server = express();
+
+let appInitialized = false;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
     bodyParser: false,
-  });
-
-  app.use((req: any, res: any, next: any) => {
-    const origin = req.headers.origin;
-
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-
-    res.setHeader('Vary', 'Origin');
-    res.setHeader(
-      'Access-Control-Allow-Methods',
-      'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    );
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, authorization',
-    );
-
-    if (req.method === 'OPTIONS') {
-      return res.status(204).end();
-    }
-
-    next();
   });
 
   app.enableCors({
@@ -70,16 +50,13 @@ async function bootstrap() {
   );
 
   await app.init();
-
-  const expressApp = app.getHttpAdapter().getInstance();
-
-  return serverlessExpress({ app: expressApp });
+  appInitialized = true;
 }
 
 export default async function handler(req: any, res: any) {
-  if (!cachedServer) {
-    cachedServer = await bootstrap();
+  if (!appInitialized) {
+    await bootstrap();
   }
 
-  return cachedServer(req, res);
+  return server(req, res);
 }
