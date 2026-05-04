@@ -4,16 +4,30 @@ import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+  });
 
-  // 👇 ESSENCIAL para validar assinatura do Strava
+  app.enableCors({
+    origin: [
+      'https://jf-app.vercel.app',
+      'https://jfassessoria.vercel.app',
+      'http://localhost:3000',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
+
   app.use(
     bodyParser.json({
-      verify: (req: any, res, buf) => {
+      verify: (req: any, _res, buf) => {
         req.rawBody = buf;
       },
     }),
   );
+
+  app.use(bodyParser.urlencoded({ extended: true }));
 
   app.setGlobalPrefix('api/v2');
 
@@ -25,6 +39,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000);
 }
+
 bootstrap();
