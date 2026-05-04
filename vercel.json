@@ -1,23 +1,14 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "src/main.ts",
-            "use": "@vercel/node"
-        }
-    ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "src/main.ts",
-            "methods": [
-                "GET",
-                "POST",
-                "PUT",
-                "PATCH",
-                "DELETE",
-                "OPTIONS"
-            ]
-        }
+    "functions": {
+      "api/index.ts": {
+        "maxDuration": 30
+      }
+    },
+    "rewrites": [
+      {
+        "source": "/(.*)",
+        "destination": "/api/index.ts"
+      }
     ]
-}
+  }

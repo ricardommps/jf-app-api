@@ -1,7 +1,16 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import serverlessExpress from '@vendia/serverless-express';
 import * as bodyParser from 'body-parser';
-import { AppModule } from './app.module';
+import { AppModule } from '../src/app.module';
+
+const allowedOrigins = [
+  'https://jf-app.vercel.app',
+  'https://jfassessoria.vercel.app',
+  'http://localhost:3000',
+];
+
+let cachedServer: any;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -9,11 +18,7 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: [
-      'https://jf-app.vercel.app',
-      'https://jfassessoria.vercel.app',
-      'http://localhost:3000',
-    ],
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'authorization'],
     credentials: true,
@@ -40,7 +45,17 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT || 3000);
+  await app.init();
+
+  const expressApp = app.getHttpAdapter().getInstance();
+
+  return serverlessExpress({ app: expressApp });
 }
 
-bootstrap();
+export default async function handler(req: any, res: any) {
+  if (!cachedServer) {
+    cachedServer = await bootstrap();
+  }
+
+  return cachedServer(req, res);
+}
