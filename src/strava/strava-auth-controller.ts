@@ -16,6 +16,66 @@ import { StravaService } from './strava.service';
 export class StravaAuthController {
   constructor(private readonly stravaService: StravaService) {}
 
+  private decodeState(state: string) {
+    try {
+      return JSON.parse(Buffer.from(state, 'base64').toString()) as {
+        userId: number;
+        redirectUri: string;
+      };
+    } catch {
+      throw new BadRequestException('Invalid state');
+    }
+  }
+
+  private buildRedirectUrl(
+    redirectUri: string,
+    options?: {
+      pathOverride?: string;
+      query?: Record<string, string | number | boolean>;
+    },
+  ) {
+    const { pathOverride, query = {} } = options ?? {};
+
+    try {
+      const parsed = new URL(redirectUri);
+      const isHttpRedirect =
+        parsed.protocol === 'http:' || parsed.protocol === 'https:';
+
+      if (isHttpRedirect) {
+        if (pathOverride) {
+          parsed.pathname = `/${pathOverride.replace(/^\/+/, '')}`;
+        }
+
+        Object.entries(query).forEach(([key, value]) => {
+          parsed.searchParams.set(key, String(value));
+        });
+
+        return parsed.toString();
+      }
+
+      const originalPath = parsed.pathname.replace(/^\/+/, '');
+      const hasHostStyle = Boolean(parsed.hostname) && !originalPath;
+      const targetPath = pathOverride ?? parsed.hostname ?? originalPath ?? '';
+      const normalizedPath = targetPath || parsed.hostname || originalPath;
+      const queryString = new URLSearchParams(
+        Object.entries(query).map(([key, value]) => [key, String(value)]),
+      ).toString();
+      const baseUrl = hasHostStyle
+        ? `${parsed.protocol}//${normalizedPath}`
+        : `${parsed.protocol}///${normalizedPath}`;
+
+      return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+    } catch {
+      const fallbackPath = pathOverride ?? 'strava-error';
+      const queryString = new URLSearchParams(
+        Object.entries(query).map(([key, value]) => [key, String(value)]),
+      ).toString();
+      const baseUrl = `jfapp:///${fallbackPath}`;
+
+      return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+    }
+  }
+
   @UseGuards(RolesGuard)
   @Get('connect')
   connect(
@@ -63,30 +123,48 @@ export class StravaAuthController {
     @Res() res: Response,
   ) {
     if (error) {
-      return res.redirect('jfapp://strava-error?reason=access_denied');
+      if (!state) {
+        return res.redirect(
+          this.buildRedirectUrl('jfapp:///strava-error', {
+            query: { reason: 'access_denied' },
+          }),
+        );
+      }
+
+      const { redirectUri } = this.decodeState(state);
+
+      return res.redirect(
+        this.buildRedirectUrl(redirectUri, {
+          pathOverride: 'strava-error',
+          query: { reason: 'access_denied' },
+        }),
+      );
     }
 
     if (!code || !state) {
       throw new BadRequestException('Invalid Strava callback');
     }
 
-    let decoded: { userId: number; redirectUri: string };
+    const { userId, redirectUri } = this.decodeState(state);
 
     try {
-      decoded = JSON.parse(Buffer.from(state, 'base64').toString());
-    } catch {
-      throw new BadRequestException('Invalid state');
-    }
-
-    const { userId, redirectUri } = decoded;
-
-    try {
-      const response = await axios.post('https://www.strava.com/oauth/token', {
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
+      const tokenParams = new URLSearchParams({
+        client_id: process.env.STRAVA_CLIENT_ID ?? '',
+        client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
         code,
         grant_type: 'authorization_code',
+        redirect_uri: process.env.STRAVA_REDIRECT_URI ?? '',
       });
+
+      const response = await axios.post(
+        'https://www.strava.com/api/v3/oauth/token',
+        tokenParams,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
 
       await this.stravaService.saveConnection({
         userId,
@@ -97,10 +175,28 @@ export class StravaAuthController {
       });
 
       // ✅ sucesso → volta para app
-      return res.redirect(`${redirectUri}?connected=true`);
+      return res.redirect(
+        this.buildRedirectUrl(redirectUri, {
+          query: { connected: true },
+        }),
+      );
     } catch (err) {
+      if (axios.isAxiosError(err)) {
+        console.error('========== STRAVA TOKEN EXCHANGE ERROR ==========');
+        console.error('Status:', err.response?.status);
+        console.error('Status Text:', err.response?.statusText);
+        console.error('Response:', err.response?.data);
+        console.error('Redirect URI:', process.env.STRAVA_REDIRECT_URI);
+        console.error('===============================================');
+      }
+
       console.log(err);
-      return res.redirect('jfapp://strava-error?reason=token_exchange_failed');
+      return res.redirect(
+        this.buildRedirectUrl(redirectUri, {
+          pathOverride: 'strava-error',
+          query: { reason: 'token_exchange_failed' },
+        }),
+      );
     }
   }
 

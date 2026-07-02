@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import { Repository } from 'typeorm';
@@ -11,6 +18,77 @@ import { WorkoutsEntity } from 'src/entities/workouts.entity';
 @Injectable()
 export class StravaService {
   private readonly logger = new Logger(StravaService.name);
+
+  private isInactiveApplicationError(error: unknown) {
+    if (!axios.isAxiosError(error)) {
+      return false;
+    }
+
+    const errors = error.response?.data?.errors;
+
+    return (
+      error.response?.status === 403 &&
+      Array.isArray(errors) &&
+      errors.some(
+        (item) =>
+          item?.resource === 'Application' &&
+          item?.field === 'Status' &&
+          item?.code === 'Inactive',
+      )
+    );
+  }
+
+  private handleStravaError(error: unknown, context: string): never {
+    if (axios.isAxiosError(error)) {
+      this.logger.error(`Strava request failed during ${context}`, {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        response: error.response?.data,
+        url: error.config?.url,
+        method: error.config?.method,
+        params: error.config?.params,
+      });
+
+      if (this.isInactiveApplicationError(error)) {
+        throw new ForbiddenException({
+          statusCode: HttpStatus.FORBIDDEN,
+          error: 'Forbidden',
+          code: 'STRAVA_APPLICATION_INACTIVE',
+          message: 'Strava application is inactive.',
+          detail:
+            'Activate the application in the Strava developer panel before requesting Strava activities.',
+        });
+      }
+
+      throw new HttpException(
+        {
+          statusCode: error.response?.status ?? HttpStatus.BAD_GATEWAY,
+          error: 'Strava API Error',
+          code: 'STRAVA_API_ERROR',
+          message: 'Strava request failed.',
+          detail:
+            error.response?.data?.message ??
+            'Unexpected error while requesting data from Strava.',
+          stravaErrors: Array.isArray(error.response?.data?.errors)
+            ? error.response?.data?.errors
+            : undefined,
+        },
+        error.response?.status ?? HttpStatus.BAD_GATEWAY,
+      );
+    } else {
+      this.logger.error(`Unexpected Strava error during ${context}`, error);
+    }
+
+    throw new HttpException(
+      {
+        statusCode: HttpStatus.BAD_GATEWAY,
+        error: 'Strava API Error',
+        code: 'STRAVA_API_ERROR',
+        message: 'Unexpected error while requesting data from Strava.',
+      },
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
 
   constructor(
     @InjectRepository(StravaConnectionEntity)
@@ -47,16 +125,20 @@ export class StravaService {
   }
 
   private async fetchActivity(activityId: number, accessToken: string) {
-    const response = await axios.get(
-      `https://www.strava.com/api/v3/activities/${activityId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+    try {
+      const response = await axios.get(
+        `https://www.strava.com/api/v3/activities/${activityId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      },
-    );
+      );
 
-    return response.data;
+      return response.data;
+    } catch (error) {
+      this.handleStravaError(error, 'fetchActivity');
+    }
   }
 
   private async processActivity(customerId: number, activity: any) {
@@ -122,18 +204,32 @@ export class StravaService {
 
     if (connection.expiresAt > now) return;
 
-    const response = await axios.post('https://www.strava.com/oauth/token', {
-      client_id: process.env.STRAVA_CLIENT_ID,
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
+    const refreshParams = new URLSearchParams({
+      client_id: process.env.STRAVA_CLIENT_ID ?? '',
+      client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
       refresh_token: connection.refreshToken,
       grant_type: 'refresh_token',
     });
 
-    connection.accessToken = response.data.access_token;
-    connection.refreshToken = response.data.refresh_token;
-    connection.expiresAt = response.data.expires_at;
+    try {
+      const response = await axios.post(
+        'https://www.strava.com/api/v3/oauth/token',
+        refreshParams,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
 
-    await this.stravaRepo.save(connection);
+      connection.accessToken = response.data.access_token;
+      connection.refreshToken = response.data.refresh_token;
+      connection.expiresAt = response.data.expires_at;
+
+      await this.stravaRepo.save(connection);
+    } catch (error) {
+      this.handleStravaError(error, 'refreshTokenIfNeeded');
+    }
   }
 
   async saveConnection(data: {
@@ -166,6 +262,33 @@ export class StravaService {
     });
   }
 
+  // async getActivitiesByDate(userId: number, date: string) {
+  //   const connection = await this.findByUser(userId);
+
+  //   if (!connection) {
+  //     throw new BadRequestException('Strava not connected');
+  //   }
+
+  //   await this.refreshTokenIfNeeded(connection); // ✅ reutiliza lógica já existente
+
+  //   const start = new Date(`${date}T00:00:00`);
+  //   const end = new Date(`${date}T23:59:59`);
+
+  //   const after = Math.floor(start.getTime() / 1000);
+  //   const before = Math.floor(end.getTime() / 1000);
+
+  //   const response = await axios.get(
+  //     'https://www.strava.com/api/v3/athlete/activities',
+  //     {
+  //       headers: { Authorization: `Bearer ${connection.accessToken}` },
+  //       params: { after, before },
+  //     },
+  //   );
+
+  //   const run = (response.data as any[]).find((a) => a.type === 'Run');
+  //   return run ?? null;
+  // }
+
   async getActivitiesByDate(userId: number, date: string) {
     const connection = await this.findByUser(userId);
 
@@ -173,32 +296,59 @@ export class StravaService {
       throw new BadRequestException('Strava not connected');
     }
 
-    await this.refreshTokenIfNeeded(connection); // ✅ reutiliza lógica já existente
+    try {
+      await this.refreshTokenIfNeeded(connection);
 
-    const start = new Date(`${date}T00:00:00`);
-    const end = new Date(`${date}T23:59:59`);
+      const start = new Date(`${date}T00:00:00`);
+      const end = new Date(`${date}T23:59:59`);
 
-    const after = Math.floor(start.getTime() / 1000);
-    const before = Math.floor(end.getTime() / 1000);
+      const after = Math.floor(start.getTime() / 1000);
+      const before = Math.floor(end.getTime() / 1000);
 
-    const response = await axios.get(
-      'https://www.strava.com/api/v3/athlete/activities',
-      {
-        headers: { Authorization: `Bearer ${connection.accessToken}` },
-        params: { after, before },
-      },
-    );
+      const response = await axios.get(
+        'https://www.strava.com/api/v3/athlete/activities',
+        {
+          headers: {
+            Authorization: `Bearer ${connection.accessToken}`,
+          },
+          params: {
+            after,
+            before,
+            per_page: 100,
+          },
+        },
+      );
 
-    const run = (response.data as any[]).find((a) => a.type === 'Run');
-    return run ?? null;
+      const run = (response.data as any[]).find(
+        (activity) => activity.type === 'Run',
+      );
+
+      return run ?? null;
+    } catch (error) {
+      this.handleStravaError(error, 'getActivitiesByDate');
+    }
   }
   async refreshToken(refreshToken: string) {
-    const response = await axios.post('https://www.strava.com/oauth/token', {
-      client_id: process.env.STRAVA_CLIENT_ID,
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
+    const refreshParams = new URLSearchParams({
+      client_id: process.env.STRAVA_CLIENT_ID ?? '',
+      client_secret: process.env.STRAVA_CLIENT_SECRET ?? '',
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     });
-    return response.data;
+
+    try {
+      const response = await axios.post(
+        'https://www.strava.com/api/v3/oauth/token',
+        refreshParams,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      this.handleStravaError(error, 'refreshToken');
+    }
   }
 }
