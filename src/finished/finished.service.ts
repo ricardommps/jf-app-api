@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CommentService } from 'src/comment/comment.service';
 import { CommentEntity } from 'src/entities/comment.entity';
@@ -10,6 +15,8 @@ import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
 
 export class FinishedService {
+  private readonly logger = new Logger(FinishedService.name);
+
   constructor(
     @InjectRepository(FinishedEntity)
     private finishedRepository: Repository<FinishedEntity>,
@@ -33,6 +40,10 @@ export class FinishedService {
         where: { id: payload.workoutsId },
       });
 
+      if (!workout) {
+        throw new NotFoundException('Workout não encontrado');
+      }
+
       workout.finished = true;
       workout.unrealized = payload.unrealized;
       await this.workoutRepository.save(workout);
@@ -46,9 +57,209 @@ export class FinishedService {
           authorUserId: Number(userId), // comentário em nome do aluno
         });
       }
+      console.log('----AKI---');
+      await this.notifyTeacherWhenStudentCompletesRunningWorkouts(
+        Number(userId),
+        finished.id,
+        workout,
+      );
+
       return finished;
     } catch (error) {
       throw error;
+    }
+  }
+
+  private formatDateTime(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  private getRunningWindowBounds(referenceDate?: string) {
+    const parsedReferenceDate = referenceDate ? new Date(referenceDate) : null;
+    const baseDate =
+      parsedReferenceDate && !Number.isNaN(parsedReferenceDate.getTime())
+        ? parsedReferenceDate
+        : new Date();
+
+    const startOfToday = new Date(baseDate);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfNextSevenDays = new Date(startOfToday);
+    endOfNextSevenDays.setDate(endOfNextSevenDays.getDate() + 7);
+    endOfNextSevenDays.setHours(23, 59, 59, 999);
+
+    const startOfPreviousSevenDays = new Date(startOfToday);
+    startOfPreviousSevenDays.setDate(startOfPreviousSevenDays.getDate() - 7);
+
+    const endOfPreviousDay = new Date(startOfToday.getTime() - 1);
+
+    return {
+      upcomingStart: this.formatDateTime(startOfToday),
+      upcomingEnd: this.formatDateTime(endOfNextSevenDays),
+      overdueStart: this.formatDateTime(startOfPreviousSevenDays),
+      overdueEnd: this.formatDateTime(endOfPreviousDay),
+    };
+  }
+
+  private async getPendingRunningWorkoutsSummary(
+    customerId: number,
+    referenceDate?: string,
+  ) {
+    const { upcomingStart, upcomingEnd, overdueStart, overdueEnd } =
+      this.getRunningWindowBounds(referenceDate);
+
+    const [summary] = await this.finishedRepository.manager.query(
+      `
+      SELECT
+        COALESCE(
+          SUM(
+            CASE
+              WHEN scheduled_date BETWEEN $2 AND $3 THEN 1
+              ELSE 0
+            END
+          ),
+          0
+        ) AS upcoming_count,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN scheduled_date BETWEEN $4 AND $5 THEN 1
+              ELSE 0
+            END
+          ),
+          0
+        ) AS overdue_count
+      FROM (
+        SELECT COALESCE(ws.date_published, ws.workout_date_other) AS scheduled_date
+        FROM workouts ws
+        INNER JOIN program p ON p.id = ws.program_id
+        WHERE p.customer_id = $1
+          AND COALESCE(p.active, false) = true
+          AND COALESCE(p.hide, false) = false
+          AND COALESCE(ws.running, false) = true
+          AND COALESCE(ws.finished, false) = false
+          AND COALESCE(ws.title, '') <> 'COMPETICAO'
+          AND COALESCE(ws.hide, false) = false
+          AND COALESCE(ws.published, false) = true
+          AND COALESCE(ws.date_published, ws.workout_date_other) IS NOT NULL
+          AND COALESCE(ws.date_published, ws.workout_date_other) BETWEEN $4 AND $3
+
+        UNION ALL
+
+        SELECT COALESCE(w.date_published, w.workout_date_other) AS scheduled_date
+        FROM workout w
+        INNER JOIN program p ON p.id = w.program_id
+        WHERE p.customer_id = $1
+          AND COALESCE(p.active, false) = true
+          AND COALESCE(p.hide, false) = false
+          AND COALESCE(w.running, false) = true
+          AND COALESCE(w.finished, false) = false
+          AND COALESCE(w.name, '') <> 'COMPETICAO'
+          AND COALESCE(w.hide, false) = false
+          AND COALESCE(w.published, false) = true
+          AND COALESCE(w.date_published, w.workout_date_other) IS NOT NULL
+          AND COALESCE(w.date_published, w.workout_date_other) BETWEEN $4 AND $3
+      ) pending_running
+      `,
+      [customerId, upcomingStart, upcomingEnd, overdueStart, overdueEnd],
+    );
+
+    return {
+      upcomingCount: Number(summary?.upcoming_count || 0),
+      overdueCount: Number(summary?.overdue_count || 0),
+    };
+  }
+
+  private async notifyTeacherWhenStudentCompletesRunningWorkouts(
+    customerId: number,
+    finishedId: number,
+    workout: WorkoutsEntity,
+  ) {
+    console.log('-notifyTeacherWhenStudentCompletesRunningWorkouts--', workout);
+    if (!workout?.running) {
+      return;
+    }
+
+    try {
+      const { upcomingCount, overdueCount } =
+        await this.getPendingRunningWorkoutsSummary(customerId);
+
+      if (upcomingCount > 0 || overdueCount > 0) {
+        return;
+      }
+
+      const [student] = await this.finishedRepository.manager.query(
+        `
+        SELECT
+          c.id,
+          c.name,
+          c.user_id AS teacher_user_id,
+          u.type_user AS teacher_user_type
+        FROM customer c
+        LEFT JOIN "user" u ON u.id = c.user_id
+        WHERE c.id = $1
+        LIMIT 1
+        `,
+        [customerId],
+      );
+
+      if (!student?.name) {
+        this.logger.warn(
+          `Aluno ${customerId} não encontrado para notificação de corridas concluídas`,
+        );
+        return;
+      }
+
+      console.log('-student--', student);
+      const teacherUserId = Number(student.teacher_user_id || 0);
+      const teacherUserType = Number(student.teacher_user_type || 0);
+      console.log('-teacherUserId--', teacherUserId);
+      console.log('-teacherUserType--', teacherUserType);
+
+      if (!teacherUserId || ![2, 3].includes(teacherUserType)) {
+        this.logger.warn(
+          `Nenhum professor elegível encontrado para o aluno ${customerId}`,
+        );
+        return;
+      }
+
+      const title = 'Treinos de corrida concluídos';
+      const content = `${student.name} finalizou todos os treinos de corrida e não possui pendências nos últimos 7 dias.`;
+
+      try {
+        await this.notificationService.createNotification({
+          recipientUserId: teacherUserId,
+          title,
+          content,
+          type: 'running-finished-all',
+          link: String(finishedId),
+        });
+      } catch (notificationError) {
+        const message =
+          notificationError instanceof Error
+            ? notificationError.message
+            : 'Erro desconhecido ao criar notificação';
+
+        this.logger.error(
+          `Falha ao criar notificação de corridas concluídas para o professor ${teacherUserId}: ${message}`,
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro desconhecido ao verificar corridas concluídas';
+
+      this.logger.error(
+        `Falha ao verificar notificação de corridas concluídas para o aluno ${customerId}: ${message}`,
+      );
     }
   }
 

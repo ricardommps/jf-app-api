@@ -120,7 +120,7 @@ export class CustomerEntity {
 
   @OneToMany(
     () => NotificationEntity,
-    (notification) => notification.recipientId,
+    (notification) => notification.recipient,
   )
   notifications?: NotificationEntity[];
 

@@ -56,6 +56,14 @@ export class CustomerService {
     return customer;
   }
 
+  async findCustomersByUserId(userId: number): Promise<CustomerEntity[]> {
+    return this.customerRepository.find({
+      where: {
+        userId,
+      },
+    });
+  }
+
   async uploadImageToCloudinary(file: MulterFile, userId: number) {
     const customer = await this.findCustomerById(userId);
     if (!customer) {

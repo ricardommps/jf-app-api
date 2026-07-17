@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { NotificationEntity } from 'src/entities/notification.entity';
 import { Roles } from '../decorators/roles.decorator';
-import { UserId } from '../decorators/user-id.decorator';
+import { UserMe } from '../decorators/user-id.decorator';
 import { UserType } from '../utils/user-type.enum';
 import { NotificationService } from './notification.service';
 
@@ -25,21 +25,35 @@ export class NotificationController {
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get()
   async getNotificationByRecipientId(
-    @UserId() userId: number,
+    @UserMe() loginPayload: { userId: number; typeUser: number },
   ): Promise<NotificationEntity[]> {
-    if (!userId) {
+    if (!loginPayload?.userId) {
       throw new UnauthorizedException('User ID is required');
     }
 
-    return this.notificationService.getNotificationByRecipientId(userId);
+    return this.notificationService.getNotificationByRecipientId(loginPayload);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('/running-finished-all')
+  async getRunningFinishedAllNotifications(
+    @UserMe() loginPayload: { userId: number; typeUser: number },
+  ): Promise<NotificationEntity[]> {
+    if (!loginPayload?.userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+
+    return this.notificationService.getRunningFinishedAllNotifications(
+      loginPayload,
+    );
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('/readAt/:notificationId')
   async readAt(
-    @UserId() userId: number,
+    @UserMe() loginPayload: { userId: number; typeUser: number },
     @Param('notificationId') notificationId: number,
   ): Promise<NotificationEntity> {
-    return this.notificationService.readAt(userId, notificationId);
+    return this.notificationService.readAt(loginPayload, notificationId);
   }
 }
