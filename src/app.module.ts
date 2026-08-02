@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppDataSource } from './data-source';
 
+import { AppVersionModule } from './app-version/app-version.module';
 import { AuthModule } from './auth/auth.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { CommentModule } from './comment/comment.module';
@@ -49,6 +50,7 @@ const envFilePath =
     }),
 
     // 🔹 Application modules
+    AppVersionModule,
     UserModule,
     AuthModule,
     CustomerModule,
