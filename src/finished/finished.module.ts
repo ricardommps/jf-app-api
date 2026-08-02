@@ -5,6 +5,7 @@ import { CommentEntity } from 'src/entities/comment.entity';
 import { ProgramEntity } from 'src/entities/program.entity';
 import { FirebaseModule } from 'src/firebase/firebase.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { StravaModule } from 'src/strava/strava.module';
 import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
 import { FinishedController } from './finished.controller';
@@ -20,6 +21,7 @@ import { FinishedService } from './finished.service';
     FirebaseModule,
     NotificationModule,
     CommentModule,
+    StravaModule,
   ],
   controllers: [FinishedController],
   providers: [FinishedService],

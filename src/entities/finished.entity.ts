@@ -63,6 +63,140 @@ export class FinishedEntity {
   @Column({ name: 'source', nullable: true })
   source: string; // 'manual' | 'strava'
 
+  @Column({ type: 'varchar', nullable: true, name: 'strava_activity_name' })
+  stravaActivityName?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'strava_activity_type' })
+  stravaActivityType?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'strava_sport_type' })
+  stravaSportType?: string;
+
+  @Column({ type: 'int', nullable: true, name: 'strava_workout_type' })
+  stravaWorkoutType?: number;
+
+  @Column({ type: 'varchar', nullable: true, name: 'strava_device_name' })
+  stravaDeviceName?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'strava_timezone' })
+  stravaTimezone?: string;
+
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    name: 'strava_start_date',
+  })
+  stravaStartDate?: Date;
+
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    name: 'strava_start_date_local',
+  })
+  stravaStartDateLocal?: Date;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'elapsed_time_in_seconds',
+  })
+  elapsedTimeInSeconds?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'total_elevation_gain',
+  })
+  totalElevationGain?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'average_heartrate',
+  })
+  averageHeartrate?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'max_heartrate',
+  })
+  maxHeartrate?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'average_cadence',
+  })
+  averageCadence?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'calories',
+  })
+  calories?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    name: 'start_latitude',
+  })
+  startLatitude?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    name: 'start_longitude',
+  })
+  startLongitude?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    name: 'end_latitude',
+  })
+  endLatitude?: number;
+
+  @Column({
+    type: 'numeric',
+    precision: 9,
+    scale: 6,
+    nullable: true,
+    name: 'end_longitude',
+  })
+  endLongitude?: number;
+
+  @Column({ type: 'varchar', nullable: true, name: 'location_label' })
+  locationLabel?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'location_city' })
+  locationCity?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'location_state' })
+  locationState?: string;
+
+  @Column({ type: 'varchar', nullable: true, name: 'location_country' })
+  locationCountry?: string;
+
   /**
    * @deprecated Use CommentEntity com isAdmin=false ao invés deste campo
    * Mantido apenas para compatibilidade com dados antigos

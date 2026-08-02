@@ -2,7 +2,19 @@ import { config } from 'dotenv';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 
-config({ path: '.env.development.local' });
+const envFilePath =
+  process.env.ENV_FILE_PATH ||
+  (process.env.NODE_ENV === 'development'
+    ? '.env.development.local'
+    : '.env.prod.local');
+
+config({ path: envFilePath });
+
+const dbSslValue = process.env.DB_SSL?.toLowerCase();
+const shouldUseSsl =
+  dbSslValue !== undefined
+    ? ['true', '1', 'require'].includes(dbSslValue)
+    : process.env.DB_HOST?.includes('neon.tech') ?? false;
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -15,5 +27,5 @@ export const AppDataSource = new DataSource({
   migrations: [`${__dirname}/migration/**/*{.ts,.js}`],
   synchronize: false,
   migrationsRun: false,
-  ssl: true,
+  ssl: shouldUseSsl,
 });

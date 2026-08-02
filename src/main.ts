@@ -13,6 +13,7 @@ async function bootstrap() {
       'https://jf-app.vercel.app',
       'https://jfassessoria.vercel.app',
       'http://localhost:3000',
+      'http://localhost:3034',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'authorization'],

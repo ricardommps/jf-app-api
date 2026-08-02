@@ -33,8 +33,11 @@ export class NotificationEntity {
   @Column({ name: 'type' })
   type: string;
 
-  @Column({ name: 'link' })
-  link: string;
+  @Column({ name: 'link', nullable: true })
+  link?: string | null;
+
+  @Column({ name: 'metadata', type: 'jsonb', nullable: true })
+  metadata?: Record<string, unknown> | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { CreateCommentDto } from 'src/dtos/create-comment.dto';
 import { CommentEntity } from 'src/entities/comment.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
+import { CreateNotificationV2Payload } from 'src/notification/notification-v2.types';
 import { NotificationService } from 'src/notification/notification.service';
+import { formatRunningWorkoutTitle } from 'src/utils/workout-labels.util';
 import { In, Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 
@@ -19,6 +21,70 @@ export class CommentService {
     private readonly firebaseService: FirebaseService,
     private readonly notificationService: NotificationService,
   ) {}
+
+  private toStringValue(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized.length ? normalized : null;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    return null;
+  }
+
+  private formatDateLabel(dateValue?: string | Date | null): string | null {
+    if (!dateValue) {
+      return null;
+    }
+
+    const parsedDate =
+      dateValue instanceof Date ? dateValue : new Date(dateValue);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const year = parsedDate.getFullYear();
+
+    return `${day}/${month}/${year}`;
+  }
+
+  private buildAdminReplyNotificationV2Payload(
+    recipientId: number,
+    finished: FinishedEntity,
+    content: string,
+  ): CreateNotificationV2Payload {
+    const rawWorkoutTitle = finished.workouts?.title ?? finished.workout?.name ?? null;
+    const workoutSubtitle =
+      finished.workouts?.subtitle ?? finished.workout?.subtitle ?? null;
+    const isRunning =
+      finished.workouts?.running ?? finished.workout?.running ?? false;
+    const title = isRunning
+      ? formatRunningWorkoutTitle(rawWorkoutTitle) ??
+        rawWorkoutTitle ??
+        'Feedback de treino'
+      : workoutSubtitle ?? rawWorkoutTitle ?? 'Feedback de treino';
+
+    return {
+      recipientId,
+      title,
+      content,
+      type: 'feedback',
+      link: String(finished.id),
+      metadata: {
+        finishedId: finished.id,
+        workoutTitle: rawWorkoutTitle ?? title,
+        workoutSubtitle,
+        referenceDate: this.formatDateLabel(finished.executionDay),
+        workoutKind: isRunning ? 'running' : 'strength',
+      },
+    };
+  }
 
   async createFinishedCommnet(createCommentDto: CreateCommentDto) {
     const { finishedId, content, authorUserId, parentId } = createCommentDto;
@@ -51,12 +117,6 @@ export class CommentService {
   ): Promise<CommentEntity> {
     const { finishedId, content, authorUserId, parentId } = createCommentDto;
     const authorId = isAdmin && authorUserId ? authorUserId : loggedUserId;
-    if (!isAdmin && authorUserId) {
-      throw new HttpException(
-        'Apenas administradores podem informar outro usuário',
-        HttpStatus.FORBIDDEN,
-      );
-    }
 
     // 🔎 Verificar se o finished existe
     const finished = await this.finishedRepository.findOne({
@@ -114,31 +174,13 @@ export class CommentService {
     });
     const savedComment = await this.commentRepository.save(comment);
     if (isAdmin && parentId && authorUserId) {
-      const payloadNotification = {
-        recipientId: authorId,
-        title: 'Olá',
-        content: 'Joana respondeu um comentário seu! Vem ver!',
-        type: 'feedback',
-        link: finishedId,
-      };
-
-      const notification =
-        await this.notificationService.createNotification(payloadNotification);
-
-      const message = {
-        title: payloadNotification.title,
-        body: payloadNotification.content,
-        data: {
-          url: `jfapp://feedback?feedbackId=${finishedId}&notificationId=${notification.id}`,
-          screen: 'feedback',
-          params: `{\"feedbackId\":\"${finishedId}\",\"notificationId\":\"${notification.id}\",\"source\":\"push\"}`,
-        },
-      };
-
-      await this.firebaseService.sendNotificationNew(
-        String(authorUserId),
-        message,
+      const notificationPayload = this.buildAdminReplyNotificationV2Payload(
+        Number(authorUserId),
+        finished,
+        this.toStringValue(content) ?? 'Você recebeu uma nova resposta no feedback.',
       );
+
+      await this.notificationService.sendNotificationV2(notificationPayload);
     }
 
     return savedComment;

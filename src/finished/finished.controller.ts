@@ -109,6 +109,20 @@ export class FinishedController {
     );
   }
 
+  @Roles(UserType.Admin, UserType.Root)
+  @Put('/v2/reviewComment/:customerId/:id')
+  async reviewWorkoutCommentV2(
+    @Body() reviewWorkoutDto: reviewCommentPayload,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ): Promise<FinishedEntity> {
+    return this.finishedService.reviewWorkoutCommentsV2(
+      customerId,
+      Number(id),
+      reviewWorkoutDto,
+    );
+  }
+
   @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('getVolumeByCustomer/:userId')
   async getVolumeByCustomer(
@@ -129,6 +143,18 @@ export class FinishedController {
   @Get('/history/:id')
   async findAllByWorkoutId(@Param('id') id: string) {
     return await this.finishedService.findAllByWorkoutId(id);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('/activitiesDetails/:feedbackId')
+  async getActivitiesDetails(
+    @UserId() userId: number,
+    @Param('feedbackId') feedbackId: string,
+  ) {
+    return await this.finishedService.getActivitiesDetails(
+      userId,
+      Number(feedbackId),
+    );
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)

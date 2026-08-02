@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Get,
   Query,
   Res,
@@ -41,30 +42,36 @@ export class StravaAuthController {
       const isHttpRedirect =
         parsed.protocol === 'http:' || parsed.protocol === 'https:';
 
-      if (isHttpRedirect) {
-        if (pathOverride) {
-          parsed.pathname = `/${pathOverride.replace(/^\/+/, '')}`;
+      if (pathOverride) {
+        const normalizedPath = pathOverride.replace(/^\/+/, '');
+        const originalPath = parsed.pathname.replace(/^\/+/, '');
+        const isExpoProxyPath = originalPath.startsWith('--/');
+        const isHostStyleCustomScheme =
+          !isHttpRedirect && Boolean(parsed.hostname) && !originalPath;
+
+        if (isHttpRedirect) {
+          parsed.pathname = `/${normalizedPath}`;
+        } else if (isHostStyleCustomScheme) {
+          const queryString = new URLSearchParams(
+            Object.entries(query).map(([key, value]) => [key, String(value)]),
+          ).toString();
+          const baseUrl = `${parsed.protocol}//${normalizedPath}`;
+
+          return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+        } else if (isExpoProxyPath) {
+          parsed.pathname = `/--/${normalizedPath}`;
+        } else if (parsed.hostname) {
+          parsed.pathname = `/${normalizedPath}`;
+        } else {
+          parsed.pathname = `///${normalizedPath}`;
         }
-
-        Object.entries(query).forEach(([key, value]) => {
-          parsed.searchParams.set(key, String(value));
-        });
-
-        return parsed.toString();
       }
 
-      const originalPath = parsed.pathname.replace(/^\/+/, '');
-      const hasHostStyle = Boolean(parsed.hostname) && !originalPath;
-      const targetPath = pathOverride ?? parsed.hostname ?? originalPath ?? '';
-      const normalizedPath = targetPath || parsed.hostname || originalPath;
-      const queryString = new URLSearchParams(
-        Object.entries(query).map(([key, value]) => [key, String(value)]),
-      ).toString();
-      const baseUrl = hasHostStyle
-        ? `${parsed.protocol}//${normalizedPath}`
-        : `${parsed.protocol}///${normalizedPath}`;
+      Object.entries(query).forEach(([key, value]) => {
+        parsed.searchParams.set(key, String(value));
+      });
 
-      return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+      return parsed.toString();
     } catch {
       const fallbackPath = pathOverride ?? 'strava-error';
       const queryString = new URLSearchParams(
@@ -198,6 +205,12 @@ export class StravaAuthController {
         }),
       );
     }
+  }
+
+  @UseGuards(RolesGuard)
+  @Delete('disconnect')
+  async disconnect(@UserId() loggedUserId: number) {
+    return this.stravaService.disconnectByUser(loggedUserId);
   }
 
   @UseGuards(RolesGuard)

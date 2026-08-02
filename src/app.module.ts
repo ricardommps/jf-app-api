@@ -25,11 +25,17 @@ import { WorkoutsModule } from './workouts/workouts.module';
 
 import { RolesGuard } from './guards/roles.guard';
 
+const envFilePath =
+  process.env.ENV_FILE_PATH ||
+  (process.env.NODE_ENV === 'development'
+    ? '.env.development.local'
+    : '.env.prod.local');
+
 @Module({
   imports: [
     // 🔹 Environment variables
     ConfigModule.forRoot({
-      envFilePath: ['.env.development.local'],
+      envFilePath: [envFilePath],
       isGlobal: true,
     }),
 

@@ -15,9 +15,81 @@ import { ProgramEntity } from 'src/entities/program.entity';
 import { StravaConnectionEntity } from 'src/entities/strava-connection.entity';
 import { WorkoutsEntity } from 'src/entities/workouts.entity';
 
+type StravaActivity = {
+  id?: number;
+  name?: string | null;
+  type?: string | null;
+  sport_type?: string | null;
+  workout_type?: number | null;
+  device_name?: string | null;
+  timezone?: string | null;
+  start_date?: string | null;
+  start_date_local?: string | null;
+  elapsed_time?: number | null;
+  total_elevation_gain?: number | null;
+  average_heartrate?: number | null;
+  max_heartrate?: number | null;
+  average_cadence?: number | null;
+  calories?: number | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  location_country?: string | null;
+  map?: {
+    summary_polyline?: string | null;
+  } | null;
+  start_latlng?: [number, number] | null;
+  end_latlng?: [number, number] | null;
+};
+
 @Injectable()
 export class StravaService {
   private readonly logger = new Logger(StravaService.name);
+
+  private hasText(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  private extractActivityId(linkStrava: string): number | null {
+    const normalizedLink = linkStrava.trim();
+    const match =
+      normalizedLink.match(/activities\/(\d+)/i) ??
+      normalizedLink.match(/(\d+)(?!.*\d)/);
+
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const activityId = Number(match[1]);
+    return Number.isNaN(activityId) ? null : activityId;
+  }
+
+  private toOptionalNumber(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    const numericValue = Number(value);
+    return Number.isNaN(numericValue) ? undefined : numericValue;
+  }
+
+  private toOptionalDate(value: unknown): Date | undefined {
+    if (!this.hasText(value)) {
+      return undefined;
+    }
+
+    const parsedDate = new Date(value);
+    return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+  }
+
+  private buildLocationLabel(activity: StravaActivity): string | undefined {
+    const parts = [
+      activity.location_city?.trim(),
+      activity.location_state?.trim(),
+      activity.location_country?.trim(),
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(', ') : undefined;
+  }
 
   private isInactiveApplicationError(error: unknown) {
     if (!axios.isAxiosError(error)) {
@@ -141,6 +213,92 @@ export class StravaService {
     }
   }
 
+  async enrichFinishedWithStravaDetails(
+    customerId: number,
+    finishedId: number,
+    linkStrava: string,
+  ) {
+    if (!this.hasText(linkStrava)) {
+      return false;
+    }
+
+    const activityId = this.extractActivityId(linkStrava);
+
+    if (!activityId) {
+      this.logger.warn(
+        `Não foi possível extrair o activityId do link do Strava para o finished ${finishedId}`,
+      );
+      return false;
+    }
+
+    let connection = await this.findByUser(customerId);
+
+    if (!connection) {
+      this.logger.warn(
+        `Conexão Strava não encontrada para customer ${customerId} ao enriquecer finished ${finishedId}`,
+      );
+      return false;
+    }
+
+    connection = await this.refreshTokenIfNeeded(connection);
+
+    const activity = (await this.fetchActivity(
+      activityId,
+      connection.accessToken,
+    )) as StravaActivity;
+
+    const resolvedExternalId = this.toOptionalNumber(activity.id);
+    const duplicatedFinishedWithSameExternalId =
+      resolvedExternalId !== undefined
+        ? await this.finishedRepo.findOne({
+            where: { externalId: resolvedExternalId },
+          })
+        : null;
+
+    const patch: Partial<FinishedEntity> = {
+      id: finishedId,
+      source: 'strava',
+      summaryPolyline: activity.map?.summary_polyline?.trim() || undefined,
+      stravaActivityName: activity.name?.trim() || undefined,
+      stravaActivityType: activity.type?.trim() || undefined,
+      stravaSportType: activity.sport_type?.trim() || undefined,
+      stravaWorkoutType: this.toOptionalNumber(activity.workout_type),
+      stravaDeviceName: activity.device_name?.trim() || undefined,
+      stravaTimezone: activity.timezone?.trim() || undefined,
+      stravaStartDate: this.toOptionalDate(activity.start_date),
+      stravaStartDateLocal: this.toOptionalDate(activity.start_date_local),
+      elapsedTimeInSeconds: this.toOptionalNumber(activity.elapsed_time),
+      totalElevationGain: this.toOptionalNumber(activity.total_elevation_gain),
+      averageHeartrate: this.toOptionalNumber(activity.average_heartrate),
+      maxHeartrate: this.toOptionalNumber(activity.max_heartrate),
+      averageCadence: this.toOptionalNumber(activity.average_cadence),
+      calories: this.toOptionalNumber(activity.calories),
+      startLatitude: this.toOptionalNumber(activity.start_latlng?.[0]),
+      startLongitude: this.toOptionalNumber(activity.start_latlng?.[1]),
+      endLatitude: this.toOptionalNumber(activity.end_latlng?.[0]),
+      endLongitude: this.toOptionalNumber(activity.end_latlng?.[1]),
+      locationLabel: this.buildLocationLabel(activity),
+      locationCity: activity.location_city?.trim() || undefined,
+      locationState: activity.location_state?.trim() || undefined,
+      locationCountry: activity.location_country?.trim() || undefined,
+    };
+
+    if (
+      duplicatedFinishedWithSameExternalId &&
+      duplicatedFinishedWithSameExternalId.id !== finishedId
+    ) {
+      this.logger.warn(
+        `Atividade Strava ${resolvedExternalId} já vinculada ao finished ${duplicatedFinishedWithSameExternalId.id}. O finished ${finishedId} será enriquecido sem externalId por ser um cenário de teste.`,
+      );
+    } else {
+      patch.externalId = resolvedExternalId;
+    }
+
+    await this.finishedRepo.save(patch);
+
+    return true;
+  }
+
   private async processActivity(customerId: number, activity: any) {
     if (activity.type !== 'Run') return;
 
@@ -202,7 +360,7 @@ export class StravaService {
   private async refreshTokenIfNeeded(connection: StravaConnectionEntity) {
     const now = Math.floor(Date.now() / 1000);
 
-    if (connection.expiresAt > now) return;
+    if (connection.expiresAt > now) return connection;
 
     const refreshParams = new URLSearchParams({
       client_id: process.env.STRAVA_CLIENT_ID ?? '',
@@ -227,6 +385,7 @@ export class StravaService {
       connection.expiresAt = response.data.expires_at;
 
       await this.stravaRepo.save(connection);
+      return connection;
     } catch (error) {
       this.handleStravaError(error, 'refreshTokenIfNeeded');
     }
@@ -260,6 +419,50 @@ export class StravaService {
     return this.stravaRepo.findOne({
       where: { customerId: userId },
     });
+  }
+
+  async disconnectByUser(userId: number) {
+    const connection = await this.findByUser(userId);
+
+    if (!connection) {
+      return {
+        connected: false,
+        disconnected: false,
+      };
+    }
+
+    try {
+      const deauthorizeParams = new URLSearchParams({
+        access_token: connection.accessToken,
+      });
+
+      await axios.post(
+        'https://www.strava.com/oauth/deauthorize',
+        deauthorizeParams,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        this.logger.warn(
+          `Falha ao desautorizar no Strava para customer ${userId}: ${error.response?.status ?? 'unknown'} ${JSON.stringify(error.response?.data ?? {})}`,
+        );
+      } else {
+        this.logger.warn(
+          `Falha inesperada ao desautorizar no Strava para customer ${userId}. A conexão local será removida mesmo assim.`,
+        );
+      }
+    }
+
+    await this.stravaRepo.delete({ id: connection.id });
+
+    return {
+      connected: false,
+      disconnected: true,
+    };
   }
 
   // async getActivitiesByDate(userId: number, date: string) {
@@ -323,7 +526,13 @@ export class StravaService {
         (activity) => activity.type === 'Run',
       );
 
-      return run ?? null;
+      if (!run?.id) {
+        return null;
+      }
+
+      const detailedRun = await this.fetchActivity(run.id, connection.accessToken);
+
+      return detailedRun ?? run;
     } catch (error) {
       this.handleStravaError(error, 'getActivitiesByDate');
     }
