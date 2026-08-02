@@ -13,7 +13,7 @@ import { NotificationEntity } from 'src/entities/notification.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { UserService } from 'src/user/user.service';
 import { UserType } from 'src/utils/user-type.enum';
-import { formatRunningWorkoutTitle } from 'src/utils/workout-labels.util';
+import { formatRunningWorkoutTitle } from '../utils/workout-labels.util';
 import { Brackets, In, IsNull, Repository } from 'typeorm';
 import {
   CreateNotificationV2Payload,

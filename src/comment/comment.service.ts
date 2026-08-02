@@ -5,7 +5,7 @@ import { CommentEntity } from 'src/entities/comment.entity';
 import { FirebaseService } from 'src/firebase/firebase.service';
 import { CreateNotificationV2Payload } from 'src/notification/notification-v2.types';
 import { NotificationService } from 'src/notification/notification.service';
-import { formatRunningWorkoutTitle } from 'src/utils/workout-labels.util';
+import { formatRunningWorkoutTitle } from '../utils/workout-labels.util';
 import { In, Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 

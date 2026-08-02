@@ -17,7 +17,7 @@ import {
   formatRunningWorkoutTitle,
   formatStravaActivityTypeLabel,
   normalizeWorkoutTitleKey,
-} from 'src/utils/workout-labels.util';
+} from '../utils/workout-labels.util';
 import { In, Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
