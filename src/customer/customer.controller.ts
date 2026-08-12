@@ -10,11 +10,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { File as MulterFile } from 'multer';
-import { CustomerLoginDto } from 'src/dtos/customerLogin.dto';
-import { UpdateCustomerProfileDto } from 'src/dtos/update-customer-profile.dto';
-import { CustomerEntity } from 'src/entities/customer.entity';
-import { PasswordType } from 'src/types/password.type';
-import { UserType } from 'src/utils/user-type.enum';
+import { CustomerLoginDto } from '../dtos/customerLogin.dto';
+import { UpdateCustomerProfileDto } from '../dtos/update-customer-profile.dto';
+import { CustomerEntity } from '../entities/customer.entity';
+import { PasswordType } from '../types/password.type';
+import { UserType } from '../utils/user-type.enum';
 import { Roles } from '../decorators/roles.decorator';
 import { UserId } from '../decorators/user-id.decorator';
 import { CustomerService } from './customer.service';
