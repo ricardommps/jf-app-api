@@ -8,6 +8,8 @@ export class CustomerLoginDto {
   temporaryPassword: boolean;
   isYoungLife: boolean;
   phone: string;
+  createdAt: Date;
+
   constructor(customerEntity: CustomerEntity) {
     this.id = customerEntity.id;
     this.name = customerEntity.name;
@@ -16,5 +18,6 @@ export class CustomerLoginDto {
     this.isYoungLife = customerEntity.isYoungLife;
     this.phone = customerEntity.phone;
     this.avatar = customerEntity.avatar;
+    this.createdAt = customerEntity.createdAt;
   }
 }

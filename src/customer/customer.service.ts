@@ -7,6 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { File as MulterFile } from 'multer';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { CustomerLoginDto } from 'src/dtos/customerLogin.dto';
+import { UpdateCustomerProfileDto } from 'src/dtos/update-customer-profile.dto';
 import { PasswordType } from 'src/types/password.type';
 import { createPasswordHashed, validatePassword } from 'src/utils/password';
 import { Repository } from 'typeorm';
@@ -64,6 +66,11 @@ export class CustomerService {
     });
   }
 
+  async getCustomerProfile(userId: number): Promise<CustomerLoginDto> {
+    const customer = await this.findCustomerById(userId);
+    return new CustomerLoginDto(customer);
+  }
+
   async uploadImageToCloudinary(file: MulterFile, userId: number) {
     const customer = await this.findCustomerById(userId);
     if (!customer) {
@@ -82,6 +89,39 @@ export class CustomerService {
     });
   }
 
+  async updateProfileCustomer(
+    updateProfile: UpdateCustomerProfileDto,
+    userId: number,
+  ): Promise<CustomerLoginDto> {
+    const customer = await this.findCustomerById(userId);
+
+    const hasName = typeof updateProfile.name === 'string';
+    const hasPhone = typeof updateProfile.phone === 'string';
+
+    if (!hasName && !hasPhone) {
+      throw new BadRequestException('Nenhum dado de perfil foi informado');
+    }
+
+    const nextName = hasName ? updateProfile.name?.trim() : undefined;
+    const nextPhone = hasPhone ? updateProfile.phone?.trim() : undefined;
+
+    if (hasName && !nextName) {
+      throw new BadRequestException('Nome inválido');
+    }
+
+    if (hasPhone && !nextPhone) {
+      throw new BadRequestException('Telefone inválido');
+    }
+
+    const updatedCustomer = await this.customerRepository.save({
+      ...customer,
+      ...(hasName ? { name: nextName } : {}),
+      ...(hasPhone ? { phone: nextPhone } : {}),
+    });
+
+    return new CustomerLoginDto(updatedCustomer);
+  }
+
   async updatePasswordCustomer(
     updatePassword: PasswordType,
     userId: number,
@@ -96,7 +136,6 @@ export class CustomerService {
       throw new BadRequestException('Senha atual é obrigatória');
     }
 
-    // Verifica se a senha antiga confere
     const isMatch = await validatePassword(
       updatePassword.lastPassword,
       customer.password,
@@ -105,12 +144,10 @@ export class CustomerService {
       throw new UnauthorizedException('Senha atual incorreta');
     }
 
-    // Gera hash da nova senha
     const passwordHashed = await createPasswordHashed(
       updatePassword.newPassword,
     );
 
-    // Atualiza e salva
     const updatedCustomer = await this.customerRepository.save({
       ...customer,
       password: passwordHashed,
@@ -164,7 +201,6 @@ export class CustomerService {
         birthDate.getDate(),
       );
 
-      // ⛔ Ignora aniversários que já passaram
       if (birthdayThisYear < today) continue;
 
       if (sameDay(birthdayThisYear, today)) {
