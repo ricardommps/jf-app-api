@@ -18,8 +18,9 @@ import {
   formatStravaActivityTypeLabel,
   normalizeWorkoutTitleKey,
 } from '../utils/workout-labels.util';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { FinishedEntity } from '../entities/finished.entity';
+import { NotificationEntity } from '../entities/notification.entity';
 import { WorkoutsEntity } from '../entities/workouts.entity';
 
 export class FinishedService {
@@ -1003,17 +1004,19 @@ export class FinishedService {
     customerId: string,
     finished: FinishedEntity,
     feedback: string,
+    idempotencyKey?: string,
   ): CreateNotificationV2Payload {
-    const rawWorkoutTitle = finished.workouts?.title ?? finished.workout?.name ?? null;
+    const rawWorkoutTitle =
+      finished.workouts?.title ?? finished.workout?.name ?? null;
     const workoutSubtitle =
       finished.workouts?.subtitle ?? finished.workout?.subtitle ?? null;
     const isRunning =
       finished.workouts?.running ?? finished.workout?.running ?? false;
     const workoutTitle = isRunning
-      ? formatRunningWorkoutTitle(rawWorkoutTitle) ??
+      ? (formatRunningWorkoutTitle(rawWorkoutTitle) ??
         rawWorkoutTitle ??
-        'Feedback de treino'
-      : workoutSubtitle ?? rawWorkoutTitle ?? 'Feedback de treino';
+        'Feedback de treino')
+      : (workoutSubtitle ?? rawWorkoutTitle ?? 'Feedback de treino');
 
     return {
       recipientId: customerId,
@@ -1027,8 +1030,158 @@ export class FinishedService {
         workoutSubtitle,
         referenceDate: this.formatDateLabel(finished.executionDay),
         workoutKind: isRunning ? 'running' : 'strength',
+        ...(idempotencyKey && { idempotencyKey }),
       },
     };
+  }
+
+  private normalizeIdempotencyKey(value?: string | string[]): string | null {
+    const key = Array.isArray(value) ? value[0] : value;
+
+    if (!key || typeof key !== 'string') {
+      return null;
+    }
+
+    const normalizedKey = key.trim();
+
+    return normalizedKey.length ? normalizedKey : null;
+  }
+
+  private stableStringify(value: unknown): string {
+    if (value === null || typeof value !== 'object') {
+      return JSON.stringify(value);
+    }
+
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableStringify(item)).join(',')}]`;
+    }
+
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${this.stableStringify(
+            (value as Record<string, unknown>)[key],
+          )}`,
+      )
+      .join(',')}}`;
+  }
+
+  private hashString(value: string): string {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36);
+  }
+
+  private getReviewCommentIdempotencyKey(
+    customerId: string,
+    id: number,
+    reviewWorkoutDto: reviewCommentPayload,
+    providedKey?: string | string[],
+  ): string {
+    const normalizedKey = this.normalizeIdempotencyKey(providedKey);
+
+    if (normalizedKey) {
+      return normalizedKey;
+    }
+
+    return `review-comment:${customerId}:${id}:${this.hashString(
+      this.stableStringify({
+        commentId: reviewWorkoutDto.commentId ?? null,
+        feedback: reviewWorkoutDto.feedback,
+      }),
+    )}`;
+  }
+
+  private async findDuplicateReviewNotification(
+    manager: EntityManager,
+    customerId: string,
+    finishedId: number,
+    feedback: string,
+    idempotencyKey: string,
+    allowContentFallback: boolean,
+  ): Promise<NotificationEntity | null> {
+    const duplicateCondition = allowContentFallback
+      ? "(notification.metadata ->> 'idempotencyKey' = :idempotencyKey OR notification.content = :feedback)"
+      : "notification.metadata ->> 'idempotencyKey' = :idempotencyKey";
+
+    return manager
+      .getRepository(NotificationEntity)
+      .createQueryBuilder('notification')
+      .where('notification.type = :type', { type: 'feedback' })
+      .andWhere('notification.recipient_id = :recipientId', {
+        recipientId: Number(customerId),
+      })
+      .andWhere('notification.link = :link', { link: String(finishedId) })
+      .andWhere(duplicateCondition, {
+        feedback,
+        idempotencyKey,
+      })
+      .orderBy('notification.created_at', 'DESC')
+      .getOne();
+  }
+
+  private async findDuplicateAdminFeedbackComment(
+    manager: EntityManager,
+    customerId: string,
+    finishedId: number,
+    feedback: string,
+  ): Promise<CommentEntity | null> {
+    return manager.getRepository(CommentEntity).findOne({
+      where: {
+        authorId: Number(customerId),
+        content: feedback,
+        finishedId,
+        isAdmin: true,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private async createAdminReviewCommentAndSaveInTransaction(
+    manager: EntityManager,
+    customerId: string,
+    finished: FinishedEntity,
+    reviewWorkoutDto: reviewCommentPayload,
+  ): Promise<FinishedEntity> {
+    const commentRepository = manager.getRepository(CommentEntity);
+    const finishedRepository = manager.getRepository(FinishedEntity);
+
+    const createComment = await commentRepository.save(
+      commentRepository.create({
+        authorId: Number(customerId),
+        content: reviewWorkoutDto.feedback,
+        finishedId: finished.id,
+        isAdmin: true,
+        parentId: null,
+        read: false,
+      }),
+    );
+
+    if (!createComment.id) {
+      throw new HttpException(
+        'Erro ao criar o comentário de feedback',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    if (reviewWorkoutDto.commentId) {
+      await commentRepository.update(
+        { id: In([reviewWorkoutDto.commentId]) },
+        { read: true },
+      );
+    }
+
+    return finishedRepository.save({
+      ...finished,
+      feedback: reviewWorkoutDto.feedback,
+      review: true,
+    });
   }
 
   async getFinishedById(id: number): Promise<FinishedEntity> {
@@ -1501,23 +1654,98 @@ export class FinishedService {
     customerId: string,
     id: number,
     reviewWorkoutDto: reviewCommentPayload,
+    idempotencyKey?: string,
   ) {
-    const finished = await this.findFinishedForReview(id, true);
-    await this.createAdminReviewCommentAndSave(
+    const hasProvidedIdempotencyKey = Boolean(
+      this.normalizeIdempotencyKey(idempotencyKey),
+    );
+    const requestKey = this.getReviewCommentIdempotencyKey(
       customerId,
-      finished,
+      id,
       reviewWorkoutDto,
+      idempotencyKey,
     );
 
-    if (customerId && finished) {
-      const notificationPayload = this.buildReviewCommentNotificationV2Payload(
+    await this.finishedRepository.manager.transaction(async (manager) => {
+      const finishedRepository = manager.getRepository(FinishedEntity);
+      const lockedFinished = await finishedRepository.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!lockedFinished) {
+        throw new NotFoundException(`finished not found`);
+      }
+
+      const finished = await finishedRepository.findOne({
+        where: { id },
+        relations: {
+          workout: true,
+          workouts: true,
+        },
+      });
+
+      if (!finished) {
+        throw new NotFoundException(`finished not found`);
+      }
+
+      const duplicateNotification = await this.findDuplicateReviewNotification(
+        manager,
         customerId,
-        finished,
+        id,
         reviewWorkoutDto.feedback,
+        requestKey,
+        !hasProvidedIdempotencyKey,
       );
 
-      await this.notificationService.sendNotificationV2(notificationPayload);
-    }
+      if (duplicateNotification) {
+        return;
+      }
+
+      const duplicateComment = hasProvidedIdempotencyKey
+        ? null
+        : await this.findDuplicateAdminFeedbackComment(
+            manager,
+            customerId,
+            id,
+            reviewWorkoutDto.feedback,
+          );
+
+      if (!duplicateComment) {
+        await this.createAdminReviewCommentAndSaveInTransaction(
+          manager,
+          customerId,
+          finished,
+          reviewWorkoutDto,
+        );
+      } else {
+        if (!finished.review || finished.feedback !== reviewWorkoutDto.feedback) {
+          await finishedRepository.save({
+            ...finished,
+            feedback: reviewWorkoutDto.feedback,
+            review: true,
+          });
+        }
+
+        if (reviewWorkoutDto.commentId) {
+          await manager
+            .getRepository(CommentEntity)
+            .update({ id: In([reviewWorkoutDto.commentId]) }, { read: true });
+        }
+      }
+
+      if (customerId) {
+        const notificationPayload =
+          this.buildReviewCommentNotificationV2Payload(
+            customerId,
+            finished,
+            reviewWorkoutDto.feedback,
+            requestKey,
+          );
+
+        await this.notificationService.sendNotificationV2(notificationPayload);
+      }
+    });
 
     return this.getFinishedById(id);
   }

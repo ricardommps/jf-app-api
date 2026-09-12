@@ -35,7 +35,7 @@ export interface WorkoutWithGroupedMedias {
 export class WorkoutsService {
   constructor(
     @InjectRepository(WorkoutsEntity)
-    private workoutRepository: Repository<WorkoutsEntity>,
+    private readonly workoutRepository: Repository<WorkoutsEntity>,
 
     private readonly musclesWorkedService: MusclesWorkedService,
 
@@ -52,7 +52,7 @@ export class WorkoutsService {
     private readonly mediaInfoRepository: Repository<MediaInfoEntity>,
 
     @InjectRepository(ProgramEntity)
-    private programRepository: Repository<ProgramEntity>,
+    private readonly programRepository: Repository<ProgramEntity>,
 
     @InjectRepository(FinishedEntity)
     private readonly finishedRepository: Repository<FinishedEntity>,
@@ -696,6 +696,47 @@ export class WorkoutsService {
   //     throw new Error(`Failed to get workouts: ${error.message}`);
   //   }
   // }
+
+  async getWeeklyRunningWorkouts(programId: number): Promise<boolean> {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() - ((dayOfWeek + 6) % 7),
+    );
+    const sunday = new Date(
+      monday.getFullYear(),
+      monday.getMonth(),
+      monday.getDate() + 6,
+    );
+    const formatDate = (date: Date) =>
+      String(date.getFullYear()) +
+      '-' +
+      String(date.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(date.getDate()).padStart(2, '0');
+
+    const workouts = await this.workoutRepository
+      .createQueryBuilder('workout')
+      .select(['workout.finished', 'workout.unrealized'])
+      .where('workout.programId = :programId', { programId })
+      .andWhere('workout.running = true')
+      .andWhere('workout.published = true')
+      .andWhere('COALESCE(workout.hide, false) = false')
+      .andWhere(
+        'DATE(COALESCE(workout.workout_date_other, workout.date_published)) BETWEEN :weekStart AND :weekEnd',
+        { weekStart: formatDate(monday), weekEnd: formatDate(sunday) },
+      )
+      .getMany();
+
+    return (
+      workouts.length > 0 &&
+      workouts.every(
+        (workout) => workout.finished === true && workout.unrealized === true,
+      )
+    );
+  }
 
   async getWorkoutsByProgramIdSimple(
     programId: number,

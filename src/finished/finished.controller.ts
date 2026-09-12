@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { FinishedEntity } from 'src/entities/finished.entity';
 import { reviewCommentPayload } from 'src/types/review-comment.type';
 import { Roles } from '../decorators/roles.decorator';
@@ -115,11 +124,13 @@ export class FinishedController {
     @Body() reviewWorkoutDto: reviewCommentPayload,
     @Param('id') id: string,
     @Param('customerId') customerId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<FinishedEntity> {
     return this.finishedService.reviewWorkoutCommentsV2(
       customerId,
       Number(id),
       reviewWorkoutDto,
+      idempotencyKey,
     );
   }
 

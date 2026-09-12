@@ -82,6 +82,14 @@ export class WorkoutsController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('weekly')
+  async getWeeklyRunningWorkouts(
+    @Query('programId') programId: number,
+  ): Promise<boolean> {
+    return this.workoutsService.getWeeklyRunningWorkouts(programId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('list')
   async getWorkoutsByProgramId(
     @Query('programId') programId: number,
