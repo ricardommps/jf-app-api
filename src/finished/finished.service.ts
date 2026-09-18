@@ -479,6 +479,81 @@ export class FinishedService {
     }
   }
 
+  async getShareData(userId: number, finishedId: number) {
+    await this.validateActivityDetailsAccess(userId, finishedId);
+
+    const [details] = await this.finishedRepository.manager.query(
+      `
+        SELECT
+          f.id,
+          f.execution_day AS "executionDay",
+          f.type_workout AS "typeWorkout",
+          f.distance,
+          f.distance_in_meters AS "distanceInMeters",
+          f.duration_in_seconds AS "durationInSeconds",
+          f.elapsed_time_in_seconds AS "elapsedTimeInSeconds",
+          f.pace_in_seconds AS "paceInSeconds",
+          f.rpe,
+          training.name AS "trainingName",
+          training.subtitle AS "trainingSubtitle"
+        FROM finished f
+        LEFT JOIN (
+          SELECT
+            id::text AS id,
+            name,
+            subtitle
+          FROM workout
+          UNION ALL
+          SELECT
+            id::text AS id,
+            title AS name,
+            subtitle
+          FROM workouts
+        ) training ON (
+          f.workout_id::text = training.id
+          OR f.workouts_id::text = training.id
+        )
+        WHERE f.id = $1
+        LIMIT 1
+      `,
+      [finishedId],
+    );
+
+    if (!details) {
+      throw new NotFoundException('Treino finalizado não encontrado');
+    }
+
+    const moduleKey = normalizeWorkoutTitleKey(
+      this.firstNonEmpty(
+        this.toStringValue(details.typeWorkout),
+        this.toStringValue(details.trainingName),
+      ),
+    );
+    const moduleLabel = moduleKey
+      ? formatRunningWorkoutTitle(moduleKey)
+      : this.toStringValue(details.trainingName);
+    const distanceInKm = this.resolveDistanceInKm(details);
+    const durationInSeconds = this.resolveMovingTimeInSeconds(details);
+    const paceInSeconds = this.resolveAveragePaceSecondsPerKm(details);
+
+    return {
+      id: details.id,
+      executionDay: this.toStringValue(details.executionDay),
+      module: {
+        key: moduleKey,
+        label: moduleLabel,
+      },
+      title: this.toStringValue(details.trainingName),
+      subtitle: this.toStringValue(details.trainingSubtitle),
+      distanceKm: distanceInKm,
+      durationInSeconds,
+      durationLabel: this.formatDurationLabel(durationInSeconds),
+      paceInSeconds,
+      paceLabel: this.formatPaceLabel(paceInSeconds),
+      effort: this.toOptionalNumber(details.rpe),
+    };
+  }
+
   async getActivitiesDetails(userId: number, feedbackId: number) {
     await this.validateActivityDetailsAccess(userId, feedbackId);
 

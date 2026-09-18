@@ -157,6 +157,18 @@ export class FinishedController {
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)
+  @Get('/share/:finishedId')
+  async getShareData(
+    @UserId() userId: number,
+    @Param('finishedId') finishedId: string,
+  ) {
+    return await this.finishedService.getShareData(
+      userId,
+      Number(finishedId),
+    );
+  }
+
+  @Roles(UserType.Admin, UserType.Root, UserType.User)
   @Get('/activitiesDetails/:feedbackId')
   async getActivitiesDetails(
     @UserId() userId: number,
