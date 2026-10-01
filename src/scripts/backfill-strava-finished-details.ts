@@ -68,7 +68,9 @@ type StravaActivity = {
 };
 
 const getArgValue = (flag: string): string | undefined => {
-  const arg = process.argv.find((item) => item === flag || item.startsWith(`${flag}=`));
+  const arg = process.argv.find(
+    (item) => item === flag || item.startsWith(`${flag}=`),
+  );
 
   if (!arg) {
     return undefined;
@@ -261,7 +263,9 @@ const refreshTokenIfNeeded = async (
   const clientSecret = process.env.STRAVA_CLIENT_SECRET ?? '';
 
   if (!clientId || !clientSecret) {
-    throw new Error('STRAVA_CLIENT_ID ou STRAVA_CLIENT_SECRET não configurados');
+    throw new Error(
+      'STRAVA_CLIENT_ID ou STRAVA_CLIENT_SECRET não configurados',
+    );
   }
 
   const refreshParams = new URLSearchParams({
@@ -311,8 +315,6 @@ const main = async () => {
   const finishedRepo = AppDataSource.getRepository(FinishedEntity);
   const stravaRepo = AppDataSource.getRepository(StravaConnectionEntity);
 
-  console.log('[backfill] options:', options);
-
   let processed = 0;
   let updated = 0;
   let skipped = 0;
@@ -323,10 +325,6 @@ const main = async () => {
     const filteredCandidates = options.force
       ? candidates
       : candidates.filter(needsBackfill);
-
-    console.log(
-      `[backfill] candidatos encontrados: ${candidates.length}; após filtro: ${filteredCandidates.length}`,
-    );
 
     for (const candidate of filteredCandidates) {
       processed += 1;
@@ -364,12 +362,17 @@ const main = async () => {
 
         connection = await refreshTokenIfNeeded(connection, stravaRepo);
 
-        const activity = await fetchActivity(activityId, connection.accessToken);
+        const activity = await fetchActivity(
+          activityId,
+          connection.accessToken,
+        );
 
         const locationLabel = buildLocationLabel(activity);
         const patch: Partial<FinishedEntity> = {
           id: candidate.finishedId,
-          externalId: toOptionalNumber(activity.id) ?? toOptionalNumber(candidate.externalId),
+          externalId:
+            toOptionalNumber(activity.id) ??
+            toOptionalNumber(candidate.externalId),
           source: hasText(candidate.source) ? candidate.source : 'strava',
           summaryPolyline:
             activity.map?.summary_polyline?.trim() ||
@@ -400,19 +403,11 @@ const main = async () => {
         };
 
         if (options.dryRun) {
-          console.log('[backfill][dry-run]', {
-            finishedId: candidate.finishedId,
-            activityId,
-            patch,
-          });
           continue;
         }
 
         await finishedRepo.save(patch);
         updated += 1;
-        console.log(
-          `[backfill] finished ${candidate.finishedId} atualizado com atividade ${activityId}`,
-        );
       } catch (error) {
         failed += 1;
         const message =
@@ -433,9 +428,6 @@ const main = async () => {
     }
   }
 
-  console.log(
-    `[backfill] resumo -> processados: ${processed}, atualizados: ${updated}, ignorados: ${skipped}, falhas: ${failed}`,
-  );
 };
 
 main()

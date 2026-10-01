@@ -84,7 +84,7 @@ export class FinishedService {
             ...payload,
             externalId: duplicatedFinishedWithSameExternalId
               ? null
-              : resolvedExternalId ?? payload.externalId ?? null,
+              : (resolvedExternalId ?? payload.externalId ?? null),
           });
         },
       );
@@ -118,7 +118,6 @@ export class FinishedService {
           authorUserId: Number(userId), // comentário em nome do aluno
         });
       }
-      console.log('----AKI---');
       await this.notifyTeacherWhenStudentCompletesRunningWorkouts(
         Number(userId),
         finished.id,
@@ -203,9 +202,12 @@ export class FinishedService {
   }
 
   private firstNonEmpty(...values: Array<string | null | undefined>) {
-    return values.find(
-      (value): value is string => typeof value === 'string' && value.trim().length > 0,
-    ) ?? null;
+    return (
+      values.find(
+        (value): value is string =>
+          typeof value === 'string' && value.trim().length > 0,
+      ) ?? null
+    );
   }
 
   private toOptionalNumber(value: unknown): number | null {
@@ -217,7 +219,11 @@ export class FinishedService {
     return Number.isNaN(parsedValue) ? null : parsedValue;
   }
 
-  private formatDecimalLabel(value: number, suffix: string, fractionDigits = 2) {
+  private formatDecimalLabel(
+    value: number,
+    suffix: string,
+    fractionDigits = 2,
+  ) {
     return `${new Intl.NumberFormat('pt-BR', {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
@@ -438,7 +444,10 @@ export class FinishedService {
     return isRunning ? 'running' : 'strength';
   }
 
-  private async validateActivityDetailsAccess(userId: number, finishedId: number) {
+  private async validateActivityDetailsAccess(
+    userId: number,
+    finishedId: number,
+  ) {
     const [context] = await this.finishedRepository.manager.query(
       `
         SELECT
@@ -495,24 +504,18 @@ export class FinishedService {
           f.pace_in_seconds AS "paceInSeconds",
           f.rpe,
           training.name AS "trainingName",
-          training.subtitle AS "trainingSubtitle"
+          training.subtitle AS "trainingSubtitle",
+          training.type AS "type"
         FROM finished f
         LEFT JOIN (
           SELECT
-            id::text AS id,
-            name,
-            subtitle
-          FROM workout
-          UNION ALL
-          SELECT
-            id::text AS id,
+            ws.id::text AS id,
             title AS name,
-            subtitle
-          FROM workouts
-        ) training ON (
-          f.workout_id::text = training.id
-          OR f.workouts_id::text = training.id
-        )
+            ws.subtitle,
+            p.type
+          FROM workouts ws
+          LEFT JOIN program p ON p.id = ws.program_id
+        ) training ON f.workouts_id::text = training.id
         WHERE f.id = $1
         LIMIT 1
       `,
@@ -545,6 +548,7 @@ export class FinishedService {
       },
       title: this.toStringValue(details.trainingName),
       subtitle: this.toStringValue(details.trainingSubtitle),
+      type: this.toOptionalNumber(details.type),
       distanceKm: distanceInKm,
       durationInSeconds,
       durationLabel: this.formatDurationLabel(durationInSeconds),
@@ -723,7 +727,9 @@ export class FinishedService {
       summaryPolyline: this.toStringValue(details.summaryPolyline),
       review,
       unrealized,
-      intensities: Array.isArray(details.intensities) ? details.intensities : null,
+      intensities: Array.isArray(details.intensities)
+        ? details.intensities
+        : null,
       unitMeasurement,
       unitmeasurement: unitMeasurement,
       typeWorkout: this.toStringValue(details.typeWorkout),
@@ -798,7 +804,9 @@ export class FinishedService {
             : null,
         movingTimeInSeconds,
         movingTimeLabel,
-        intensities: Array.isArray(details.intensities) ? details.intensities : null,
+        intensities: Array.isArray(details.intensities)
+          ? details.intensities
+          : null,
         unitMeasurement,
         unitmeasurement: unitMeasurement,
         warmUpDuration: details.warmUpDuration ?? null,
@@ -936,7 +944,6 @@ export class FinishedService {
     finishedId: number,
     workout: WorkoutsEntity,
   ) {
-    console.log('-notifyTeacherWhenStudentCompletesRunningWorkouts--', workout);
     if (!workout?.running) {
       return;
     }
@@ -971,11 +978,8 @@ export class FinishedService {
         return;
       }
 
-      console.log('-student--', student);
       const teacherUserId = Number(student.teacher_user_id || 0);
       const teacherUserType = Number(student.teacher_user_type || 0);
-      console.log('-teacherUserId--', teacherUserId);
-      console.log('-teacherUserType--', teacherUserType);
 
       if (!teacherUserId || ![2, 3].includes(teacherUserType)) {
         this.logger.warn(
@@ -1794,7 +1798,10 @@ export class FinishedService {
           reviewWorkoutDto,
         );
       } else {
-        if (!finished.review || finished.feedback !== reviewWorkoutDto.feedback) {
+        if (
+          !finished.review ||
+          finished.feedback !== reviewWorkoutDto.feedback
+        ) {
           await finishedRepository.save({
             ...finished,
             feedback: reviewWorkoutDto.feedback,
@@ -2153,7 +2160,8 @@ export class FinishedService {
           f.rpe,
           f.duration_in_seconds,
           f.trimp,
-          w.running
+          w.running,
+          p1.type AS program_type
         FROM finished f
         INNER JOIN workout w ON f.workout_id = w.id
         INNER JOIN program p1 ON w.program_id = p1.id
@@ -2169,7 +2177,8 @@ export class FinishedService {
           f.rpe,
           f.duration_in_seconds,
           f.trimp,
-          ws.running
+          ws.running,
+          p2.type AS program_type
         FROM finished f      
         INNER JOIN workouts ws ON f.workouts_id = ws.id
         INNER JOIN program p2 ON ws.program_id = p2.id
@@ -2183,9 +2192,24 @@ export class FinishedService {
       [userId, startDate, endDateTime],
     );
 
+    const getProgramTypeLabel = (programType: number) => {
+      switch (programType) {
+        case 1:
+          return 'corrida';
+        case 2:
+          return 'forca';
+        case 3:
+          return 'complementar';
+        default:
+          return 'outro';
+      }
+    };
+
     const formatted = finished.map((f) => {
       const duration = Number(f.duration_in_seconds ?? 0);
       const rpe = Number(f.rpe ?? 0);
+      const programType = Number(f.program_type ?? 0);
+      const type = getProgramTypeLabel(programType);
 
       const trimp =
         duration > 0 && rpe > 0
@@ -2197,7 +2221,9 @@ export class FinishedService {
         rpe,
         durationInSeconds: duration,
         trimp,
-        running: Boolean(f.running),
+        running: programType === 1 || Boolean(f.running),
+        programType,
+        type,
       };
     });
 

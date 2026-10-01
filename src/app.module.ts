@@ -10,6 +10,7 @@ import { AppVersionModule } from './app-version/app-version.module';
 import { AuthModule } from './auth/auth.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { CommentModule } from './comment/comment.module';
+import { CustomerLessonPackageModule } from './customer-lesson-package/customer-lesson-package.module';
 import { CustomerModule } from './customer/customer.module';
 import { DeviceInfoModule } from './device-info/device-info.module';
 import { FinishedModule } from './finished/finished.module';
@@ -66,6 +67,7 @@ const envFilePath =
     DeviceInfoModule,
     MusclesWorkedModule,
     CommentModule,
+    CustomerLessonPackageModule,
     StravaModule,
   ],
 

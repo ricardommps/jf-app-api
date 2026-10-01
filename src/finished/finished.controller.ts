@@ -162,10 +162,7 @@ export class FinishedController {
     @UserId() userId: number,
     @Param('finishedId') finishedId: string,
   ) {
-    return await this.finishedService.getShareData(
-      userId,
-      Number(finishedId),
-    );
+    return await this.finishedService.getShareData(userId, Number(finishedId));
   }
 
   @Roles(UserType.Admin, UserType.Root, UserType.User)

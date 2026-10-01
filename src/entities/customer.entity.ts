@@ -13,6 +13,9 @@ import { NotificationEntity } from './notification.entity';
 import { ProgramEntity } from './program.entity';
 import { StravaConnectionEntity } from './strava-connection.entity';
 import { WorkoutLoadEntity } from './workoutLoad.entity';
+import { CustomerLessonPackageClassEntity } from './customer-lesson-package-class.entity';
+import { CustomerLessonPackagePendingClassEntity } from './customer-lesson-package-pending-class.entity';
+import { CustomerLessonPackageEntity } from './customer-lesson-package.entity';
 
 @Entity({ name: 'customer' })
 export class CustomerEntity {
@@ -118,14 +121,29 @@ export class CustomerEntity {
   @OneToMany(() => WorkoutLoadEntity, (workoutLoad) => workoutLoad.customer)
   workoutLoads: WorkoutLoadEntity[];
 
-  @OneToMany(
-    () => NotificationEntity,
-    (notification) => notification.recipient,
-  )
+  @OneToMany(() => NotificationEntity, (notification) => notification.recipient)
   notifications?: NotificationEntity[];
 
   @OneToMany(() => InvoiceEntity, (invoice) => invoice.customer)
   invoices?: InvoiceEntity[];
+
+  @OneToMany(
+    () => CustomerLessonPackageEntity,
+    (lessonPackage) => lessonPackage.customer,
+  )
+  lessonPackages?: CustomerLessonPackageEntity[];
+
+  @OneToMany(
+    () => CustomerLessonPackageClassEntity,
+    (lessonClass) => lessonClass.customer,
+  )
+  lessonPackageClasses?: CustomerLessonPackageClassEntity[];
+
+  @OneToMany(
+    () => CustomerLessonPackagePendingClassEntity,
+    (pendingClass) => pendingClass.customer,
+  )
+  lessonPackagePendingClasses?: CustomerLessonPackagePendingClassEntity[];
 
   @OneToMany(() => DeviceInfoEntity, (deviceInfo) => deviceInfo.customer)
   deviceInfos?: DeviceInfoEntity[];
