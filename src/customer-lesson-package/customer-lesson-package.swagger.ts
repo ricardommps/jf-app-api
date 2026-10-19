@@ -84,6 +84,11 @@ export const customerLessonPackageSwagger = {
             example: 'Personal 3x/semana + permuta semanal',
             nullable: true,
           },
+          warnings: {
+            type: 'string',
+            example: 'Avisar com 24h de antecedencia em caso de remarcacao',
+            nullable: true,
+          },
           lessonUnitPrice: {
             type: 'number',
             minimum: 0.01,
@@ -113,6 +118,11 @@ export const customerLessonPackageSwagger = {
             example: 'Personal 2x/semana',
             nullable: true,
           },
+          warnings: {
+            type: 'string',
+            example: 'Aluno prefere treinar pela manha',
+            nullable: true,
+          },
           lessonUnitPrice: {
             type: 'number',
             minimum: 0.01,
@@ -120,6 +130,18 @@ export const customerLessonPackageSwagger = {
           },
           status: {
             $ref: '#/components/schemas/LessonPackageStatus',
+          },
+          addClasses: {
+            type: 'array',
+            description: 'Novas aulas, adicionadas com status Programada.',
+            items: { $ref: '#/components/schemas/LessonClassInput' },
+          },
+          removeClassIds: {
+            type: 'array',
+            uniqueItems: true,
+            description:
+              'IDs das aulas a excluir. Devem pertencer ao pacote e estar com status Programada.',
+            items: { type: 'integer', minimum: 1 },
           },
         },
       },
@@ -269,6 +291,21 @@ export const customerLessonPackageSwagger = {
         },
       },
     },
+    '/customer-lesson-packages/my-packages': {
+      get: {
+        tags: ['Customer Lesson Packages'],
+        summary: 'Consultar os pacotes do aluno autenticado',
+        description:
+          'Retorna os pacotes ativos, pausados e finalizados, com suas aulas e avisos. O aluno é identificado pelo token; IDs enviados pela URL não alteram o aluno consultado.',
+        responses: {
+          '200': { description: 'Pacotes do aluno, ou uma lista vazia.' },
+          '401': { description: 'Aluno não identificado no token.' },
+          '403': {
+            description: 'Token inválido ou perfil sem acesso de aluno.',
+          },
+        },
+      },
+    },
     '/customer-lesson-packages/customer/{customerId}': {
       get: {
         tags: ['Customer Lesson Packages'],
@@ -307,6 +344,41 @@ export const customerLessonPackageSwagger = {
         responses: {
           '200': {
             description: 'Lista de pacotes ativos do customer.',
+          },
+        },
+      },
+    },
+    '/customer-lesson-packages/expiring': {
+      get: {
+        tags: ['Customer Lesson Packages'],
+        summary: 'Listar pacotes ativos próximos ao vencimento',
+        description:
+          'Usa a maior data de aula do pacote, independentemente do status da aula. Inclui a janela de 2 dias atrás a 7 dias à frente. Dias restantes são arredondados para cima até o fim do dia da última aula, seguindo a regra dos programas.',
+        responses: {
+          '200': {
+            description: 'Pacotes ativos com aulas e vencimento na janela.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      packageId: { type: 'integer' },
+                      title: { type: 'string' },
+                      customerId: { type: 'integer' },
+                      customerName: { type: 'string' },
+                      avatar: { type: 'string', nullable: true },
+                      endDate: { type: 'string', format: 'date' },
+                      daysUntilExpiration: { type: 'integer' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '403': {
+            description: 'Acesso permitido somente para Admin e Root.',
           },
         },
       },
@@ -429,6 +501,34 @@ export const customerLessonPackageSwagger = {
           '200': {
             description: 'Pacote atualizado.',
           },
+          '400': {
+            description:
+              'Dados inválidos, exclusão de aula não programada ou tentativa de finalizar com aulas programadas. Nenhuma alteração é salva em caso de erro.',
+          },
+        },
+      },
+      delete: {
+        tags: ['Customer Lesson Packages'],
+        summary: 'Excluir pacote',
+        description:
+          'Exclui o pacote pelo id. As aulas e pendencias vinculadas sao removidas por cascade.',
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'integer',
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Pacote excluido com sucesso.',
+          },
+          '404': {
+            description: 'Pacote nao encontrado.',
+          },
         },
       },
     },
@@ -459,6 +559,10 @@ export const customerLessonPackageSwagger = {
         responses: {
           '200': {
             description: 'Status do pacote atualizado.',
+          },
+          '400': {
+            description:
+              'Não é possível finalizar: o pacote ainda tem aulas programadas.',
           },
         },
       },
@@ -517,6 +621,8 @@ export const customerLessonPackageSwagger = {
       patch: {
         tags: ['Customer Lesson Packages'],
         summary: 'Editar data, horario, tipo ou observacao da aula',
+        description:
+          'Ao alterar a data, ela deve ficar dentro do intervalo de inicio e fim do pacote. Quando a data muda, o aluno recebe uma notificacao push informando a remarcacao.',
         parameters: [
           {
             name: 'classId',

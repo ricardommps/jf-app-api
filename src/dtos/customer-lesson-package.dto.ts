@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsDateString,
   IsEnum,
@@ -59,6 +60,11 @@ export class CreateCustomerLessonPackageDto {
   @MaxLength(1000)
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  warnings?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
@@ -86,6 +92,11 @@ export class UpdateCustomerLessonPackageDto {
   @MaxLength(1000)
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(1000)
+  warnings?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
@@ -95,6 +106,19 @@ export class UpdateCustomerLessonPackageDto {
   @IsEnum(CustomerLessonPackageStatus)
   @IsOptional()
   status?: CustomerLessonPackageStatus;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCustomerLessonPackageClassDto)
+  addClasses?: CreateCustomerLessonPackageClassDto[];
+
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @IsOptional()
+  removeClassIds?: number[];
 }
 
 export class AddCustomerLessonPackageClassesDto {

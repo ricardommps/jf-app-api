@@ -45,6 +45,13 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+Local commands (`npm start`, `npm run start:dev`, and `npm run start:debug`)
+set `DISABLE_PUSH_NOTIFICATIONS=true` and skip push delivery to devices without
+changing `NODE_ENV` or the database configuration. Push delivery is also skipped
+with `NODE_ENV=development`, `NODE_ENV=local`, `NODE_ENV=test`, or when `ENV_FILE_PATH`
+points to `.env.development.local`. Notifications stored by the API are still
+created normally. Production startup remains `npm run start:prod`.
+
 ## Run tests
 
 ```bash

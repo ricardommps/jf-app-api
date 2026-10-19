@@ -7,9 +7,11 @@ import { CustomerEntity } from '../entities/customer.entity';
 import { CustomerLessonPackageCalculationService } from './customer-lesson-package-calculation.service';
 import { CustomerLessonPackageController } from './customer-lesson-package.controller';
 import { CustomerLessonPackageService } from './customer-lesson-package.service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
+    NotificationModule,
     TypeOrmModule.forFeature([
       CustomerEntity,
       CustomerLessonPackageEntity,

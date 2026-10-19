@@ -22,14 +22,17 @@ export class CustomerLessonPackagePendingClassEntity {
   @Column({ name: 'class_id', nullable: true })
   classId?: number;
 
+  @Column({ name: 'rescheduled_class_id', nullable: true })
+  rescheduledClassId?: number;
+
   @Column({ name: 'customer_id', nullable: false })
   customerId: number;
 
   @Column({ name: 'original_scheduled_date', type: 'date', nullable: true })
-  originalScheduledDate?: Date;
+  originalScheduledDate?: string;
 
   @Column({ name: 'rescheduled_date', type: 'date', nullable: true })
-  rescheduledDate?: Date;
+  rescheduledDate?: string;
 
   @Column({ name: 'rescheduled_time', type: 'time', nullable: true })
   rescheduledTime?: string;
@@ -64,6 +67,17 @@ export class CustomerLessonPackagePendingClassEntity {
   )
   @JoinColumn({ name: 'class_id', referencedColumnName: 'id' })
   lessonClass?: CustomerLessonPackageClassEntity;
+
+  @ManyToOne(
+    () => CustomerLessonPackageClassEntity,
+    (lessonClass) => lessonClass.rescheduledPendingEntries,
+    {
+      nullable: true,
+      onDelete: 'SET NULL',
+    },
+  )
+  @JoinColumn({ name: 'rescheduled_class_id', referencedColumnName: 'id' })
+  rescheduledClass?: CustomerLessonPackageClassEntity;
 
   @ManyToOne(() => CustomerEntity, { cascade: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'customer_id', referencedColumnName: 'id' })

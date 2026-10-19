@@ -135,6 +135,20 @@ export class FirebaseService {
       };
     },
   ): Promise<number> {
+    const disablePushNotifications =
+      this.configService.get<string>('DISABLE_PUSH_NOTIFICATIONS') === 'true';
+    const environment = this.configService.get<string>('NODE_ENV');
+    const envFilePath = this.configService.get<string>('ENV_FILE_PATH');
+
+    // Local runs must not send push notifications to registered devices.
+    if (
+      disablePushNotifications ||
+      ['development', 'local', 'test'].includes(environment) ||
+      envFilePath?.endsWith('.env.development.local')
+    ) {
+      return 200;
+    }
+
     const expo = new Expo();
     const tokens = await this.getToken(userId);
 

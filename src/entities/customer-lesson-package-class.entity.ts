@@ -28,7 +28,7 @@ export class CustomerLessonPackageClassEntity {
   customerId: number;
 
   @Column({ name: 'scheduled_date', type: 'date', nullable: false })
-  scheduledDate: Date;
+  scheduledDate: string;
 
   @Column({ name: 'scheduled_time', type: 'time', nullable: true })
   scheduledTime?: string;
@@ -80,4 +80,10 @@ export class CustomerLessonPackageClassEntity {
     (pendingClass) => pendingClass.lessonClass,
   )
   pendingEntries?: CustomerLessonPackagePendingClassEntity[];
+
+  @OneToMany(
+    () => CustomerLessonPackagePendingClassEntity,
+    (pendingClass) => pendingClass.rescheduledClass,
+  )
+  rescheduledPendingEntries?: CustomerLessonPackagePendingClassEntity[];
 }

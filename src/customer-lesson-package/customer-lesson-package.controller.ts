@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -8,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   AddCustomerLessonPackageClassesDto,
@@ -44,6 +46,20 @@ export class CustomerLessonPackageController {
     return this.customerLessonPackageService.create(createPackageDto, userId);
   }
 
+  @Roles(UserType.User)
+  @Get('my-packages')
+  async findMyPackages(
+    @UserId() customerId: number,
+  ): Promise<CustomerLessonPackageEntity[]> {
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      throw new UnauthorizedException(
+        'Aluno não identificado. Entre novamente.',
+      );
+    }
+
+    return this.customerLessonPackageService.findByCustomerId(customerId);
+  }
+
   @Roles(UserType.Admin, UserType.Root)
   @Get('customer/:customerId')
   async findByCustomerId(
@@ -58,6 +74,12 @@ export class CustomerLessonPackageController {
     @Param('customerId', ParseIntPipe) customerId: number,
   ): Promise<CustomerLessonPackageEntity[]> {
     return this.customerLessonPackageService.findActiveByCustomerId(customerId);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Get('expiring')
+  async findExpiringPackages() {
+    return this.customerLessonPackageService.findExpiringPackages();
   }
 
   @Roles(UserType.Admin, UserType.Root)
@@ -156,6 +178,12 @@ export class CustomerLessonPackageController {
     @Body() updateStatusDto: UpdateCustomerLessonPackageStatusDto,
   ): Promise<CustomerLessonPackageEntity> {
     return this.customerLessonPackageService.updateStatus(id, updateStatusDto);
+  }
+
+  @Roles(UserType.Admin, UserType.Root)
+  @Delete(':id')
+  async delete(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.customerLessonPackageService.delete(id);
   }
 
   @Roles(UserType.Admin, UserType.Root)

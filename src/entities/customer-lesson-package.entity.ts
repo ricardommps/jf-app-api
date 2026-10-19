@@ -35,6 +35,9 @@ export class CustomerLessonPackageEntity {
   @Column({ name: 'description', nullable: true })
   description?: string;
 
+  @Column({ name: 'warnings', nullable: true })
+  warnings?: string;
+
   @Column('decimal', {
     name: 'lesson_unit_price',
     precision: 10,
